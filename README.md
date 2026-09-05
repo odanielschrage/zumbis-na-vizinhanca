@@ -26,6 +26,16 @@ também funciona, pois não há módulos ES.)
 | Trocar arma   | Q                | Shift direito   |
 | Pausar        | Esc              | Esc             |
 
+**Todas essas teclas são remapeáveis.** Em *Configurar controles* (no menu ou na
+pausa), clique numa tecla e aperte a nova. As escolhas ficam salvas no navegador
+e valem para os dois jogadores independentemente.
+
+- O jogo recusa uma tecla que já esteja em uso por outra ação (de qualquer
+  jogador) e diz qual é o conflito, para você não ficar sem um comando.
+- `Esc` é reservado para pausar e não pode ser mapeado; durante a captura, ele
+  cancela.
+- *Restaurar padrão* volta tudo à tabela acima.
+
 ## Visual
 
 Todos os personagens são desenhados num estilo **cartoon 2D sombreado** (contorno,

@@ -93,6 +93,20 @@ const Game = {
     this.initAudioControls();
     this.initHudIcons();
 
+    // controles remapeáveis (persistidos em zv_keys)
+    Controls.load();
+    this.updateControlHints();
+    document.getElementById('btnControls').onclick = () => { Sound.init(); Sound.click(); this.openControls('menu'); };
+    document.getElementById('btnPauseControls').onclick = () => { Sound.click(); this.openControls('pause'); };
+    document.getElementById('ctrlBack').onclick = () => { Sound.click(); this.closeControls(); };
+    document.getElementById('ctrlReset').onclick = () => {
+      Sound.click();
+      Controls.reset();
+      this.renderBinds();
+      this.updateControlHints();
+      this.setBindMsg('Controles restaurados para o padrão.');
+    };
+
     // dificuldade (persistida) + recorde
     try { const d = localStorage.getItem('zv_diff'); if (DIFFS[d]) this.diff = d; } catch (e) {}
     document.querySelectorAll('.diffbtn').forEach(btn => {
@@ -770,7 +784,10 @@ const Game = {
       if (this.hitStopT > 0) this.hitStopT -= dt;
       else this.update(dt);
     }
-    if (this.state === 'playing' && Input.justPressed('Escape')) {
+    // com a tela de controles aberta, Esc fecha ela (não despausa o jogo por baixo)
+    if (this.controlsOpen) {
+      if (Input.justPressed('Escape')) this.closeControls();
+    } else if (this.state === 'playing' && Input.justPressed('Escape')) {
       this.setPaused(!this.paused);
     }
     if (this.state === 'charselect') {
@@ -1041,17 +1058,10 @@ const Game = {
 
     // movimento
     let mx = 0, my = 0;
-    if (p.id === 0) {
-      if (Input.down('KeyW')) my--;
-      if (Input.down('KeyS')) my++;
-      if (Input.down('KeyA')) mx--;
-      if (Input.down('KeyD')) mx++;
-    } else {
-      if (Input.down('ArrowUp')) my--;
-      if (Input.down('ArrowDown')) my++;
-      if (Input.down('ArrowLeft')) mx--;
-      if (Input.down('ArrowRight')) mx++;
-    }
+    if (Controls.down(p.id, 'up')) my--;
+    if (Controls.down(p.id, 'down')) my++;
+    if (Controls.down(p.id, 'left')) mx--;
+    if (Controls.down(p.id, 'right')) mx++;
     const m = Math.hypot(mx, my);
     p.moving = m > 0;
     if (m > 0) {
@@ -1075,14 +1085,10 @@ const Game = {
     }
 
     // troca de arma
-    if ((p.id === 0 && Input.justPressed('KeyQ')) || (p.id === 1 && Input.justPressed('ShiftRight'))) {
-      p.switchWeapon();
-    }
+    if (Controls.justPressed(p.id, 'swap')) p.switchWeapon();
 
-    // tiro
-    const firing = p.id === 0
-      ? (Input.mouse.down || Input.down('Space'))
-      : Input.down('Enter');
+    // tiro (P1 também atira com o botão do mouse)
+    const firing = Controls.down(p.id, 'shoot') || (p.id === 0 && Input.mouse.down);
     if (firing) {
       if (p.wdef.type === 'flame') this.fireFlame(p, dt);
       else if (p.fireCd <= 0) this.shoot(p);
@@ -1176,6 +1182,116 @@ const Game = {
   },
 
   // ---------- HUD ----------
+  // ---------- controles remapeáveis ----------
+  openControls(from) {
+    this.ctrlReturn = from;              // 'menu' ou 'pause'
+    this.controlsOpen = true;
+    this.renderBinds();
+    this.setBindMsg('');
+    hide(from);
+    show('controls');
+  },
+
+  closeControls() {
+    Input.capture = null;                // cancela captura pendente
+    if (this._bindBtn) { this._bindBtn.classList.remove('listening'); this._bindBtn = null; }
+    this.controlsOpen = false;
+    hide('controls');
+    show(this.ctrlReturn || 'menu');
+    this.updateControlHints();
+  },
+
+  setBindMsg(txt, bad) {
+    const el = document.getElementById('bindMsg');
+    el.textContent = txt || '';
+    el.classList.toggle('bad', !!bad);
+  },
+
+  // monta a grade: uma coluna por jogador, uma linha por ação
+  renderBinds() {
+    const grid = document.getElementById('bindsGrid');
+    grid.innerHTML = '';
+    const names = ['JOGADOR 1', 'JOGADOR 2'];
+    const cols = ['#5ec8ff', '#ffb84d'];
+    for (let pi = 0; pi < 2; pi++) {
+      const col = document.createElement('div');
+      col.className = 'bindcol';
+      const h = document.createElement('h3');
+      h.textContent = names[pi];
+      h.style.color = cols[pi];
+      col.appendChild(h);
+      for (const a of CONTROL_ACTIONS) {
+        const row = document.createElement('div');
+        row.className = 'bindrow';
+        const lab = document.createElement('span');
+        lab.className = 'bindname';
+        lab.textContent = a.name;
+        const btn = document.createElement('button');
+        btn.className = 'bindkey';
+        btn.textContent = Controls.label(Controls.get(pi, a.id));
+        btn.onclick = () => this.startRebind(pi, a, btn);
+        row.appendChild(lab);
+        row.appendChild(btn);
+        col.appendChild(row);
+      }
+      grid.appendChild(col);
+    }
+  },
+
+  // captura a próxima tecla e grava (recusa reservadas e já usadas)
+  startRebind(player, action, btn) {
+    Sound.init(); Sound.click();
+    // cancela uma captura anterior, se houver
+    if (this._bindBtn) this._bindBtn.classList.remove('listening');
+    if (this._bindBtn) this._bindBtn.textContent = Controls.label(Controls.get(this._bindP, this._bindA));
+    this._bindBtn = btn; this._bindP = player; this._bindA = action.id;
+    btn.classList.add('listening');
+    btn.textContent = 'aperte…';
+    this.setBindMsg(`Nova tecla para "${action.name}" do Jogador ${player + 1}…`);
+
+    Input.capture = (code) => {
+      btn.classList.remove('listening');
+      this._bindBtn = null;
+      const restore = () => { btn.textContent = Controls.label(Controls.get(player, action.id)); };
+
+      if (code === 'Escape') { restore(); this.setBindMsg('Captura cancelada.'); return; }
+      if (Controls.isReserved(code)) {
+        restore();
+        this.setBindMsg(`${Controls.label(code)} é reservada para pausar o jogo.`, true);
+        Sound.empty();
+        return;
+      }
+      const taken = Controls.usedBy(code, player, action.id);
+      if (taken) {
+        restore();
+        this.setBindMsg(`${Controls.label(code)} já é "${taken.action.name}" do Jogador ${taken.player + 1}.`, true);
+        Sound.empty();
+        return;
+      }
+      Controls.set(player, action.id, code);
+      restore();
+      this.setBindMsg(`"${action.name}" do Jogador ${player + 1} agora é ${Controls.label(code)}.`);
+      Sound.pickup();
+      this.updateControlHints();
+    };
+  },
+
+  // dicas do menu refletem os bindings atuais
+  updateControlHints() {
+    const p1 = document.getElementById('p1hint');
+    const p2 = document.getElementById('p2hint');
+    if (p1) {
+      p1.innerHTML = `<b>${Controls.moveLabel(0)}</b> mover · <b>Mouse</b> mirar<br>` +
+        `<b>Clique / ${Controls.label(Controls.get(0, 'shoot'))}</b> atirar · ` +
+        `<b>${Controls.label(Controls.get(0, 'swap'))}</b> trocar arma`;
+    }
+    if (p2) {
+      p2.innerHTML = `<b>${Controls.moveLabel(1)}</b> mover<br>` +
+        `<b>${Controls.label(Controls.get(1, 'shoot'))}</b> atirar · ` +
+        `<b>${Controls.label(Controls.get(1, 'swap'))}</b> trocar arma`;
+    }
+  },
+
   // aplica/remove o atributo que ativa as cores acessíveis no CSS
   applyCbMode() {
     const root = document.documentElement;

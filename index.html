@@ -60,13 +60,14 @@
     <div class="controls">
       <div>
         <h3 style="color:#5ec8ff">Jogador 1</h3>
-        <p><b>WASD</b> mover · <b>Mouse</b> mirar<br><b>Clique / Espaço</b> atirar · <b>Q</b> trocar arma</p>
+        <p id="p1hint"></p>
       </div>
       <div>
         <h3 style="color:#ffb84d">Jogador 2</h3>
-        <p><b>Setas</b> mover<br><b>Enter</b> atirar · <b>Shift Dir.</b> trocar arma</p>
+        <p id="p2hint"></p>
       </div>
     </div>
+    <button id="btnControls" class="linkbtn">⌨ CONFIGURAR CONTROLES</button>
     <p class="hint">Resgate vizinhos 🙋 · Atire nos barris 💥 · Ache chaves 🔑 e abra cofres 🔒 · <b>Esc</b> pausa</p>
     <div class="audio-set">
       <span>🎵</span><input type="range" class="vol vol-music" min="0" max="100" title="Música">
@@ -100,12 +101,27 @@
   </div>
 </div>
 
+<!-- CONTROLES (remapeamento de teclas) -->
+<div id="controls" class="overlay hidden">
+  <div class="panel">
+    <h2>CONTROLES</h2>
+    <p class="tag">Clique numa tecla e aperte a nova. <b>Esc</b> cancela a captura.</p>
+    <div id="bindsGrid"></div>
+    <p id="bindMsg" class="bindmsg"></p>
+    <div class="btns">
+      <button id="ctrlBack" class="big">◀ VOLTAR</button>
+      <button id="ctrlReset" class="big alt">↺ RESTAURAR PADRÃO</button>
+    </div>
+  </div>
+</div>
+
 <!-- PAUSE -->
 <div id="pause" class="overlay hidden">
   <div class="panel small">
     <h2>PAUSADO</h2>
     <div class="btns">
       <button id="btnResume" class="big">CONTINUAR</button>
+      <button id="btnPauseControls" class="big alt">⌨ CONTROLES</button>
       <button id="btnQuit" class="big alt">SAIR PARA O MENU</button>
     </div>
     <div class="audio-set">

@@ -340,6 +340,56 @@ button.big.alt {
 }
 #stats b { color: #9dff5e; font-size: 20px; }
 
+/* botão discreto (ex.: "configurar controles" no menu) */
+.linkbtn {
+  pointer-events: auto; cursor: pointer;
+  font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: 1px;
+  color: #9dff5e;
+  background: rgba(157, 255, 94, .08);
+  border: 1px solid rgba(157, 255, 94, .3);
+  border-radius: 8px; padding: 8px 16px; margin-top: 14px;
+  transition: background .15s, transform .1s;
+}
+.linkbtn:hover { background: rgba(157, 255, 94, .16); transform: translateY(-1px); }
+
+/* tela de controles (remapeamento) */
+#bindsGrid {
+  display: flex; gap: 34px; justify-content: center;
+  margin: 8px 0 4px; text-align: left;
+}
+.bindcol { min-width: 220px; }
+.bindcol h3 {
+  font-size: 13px; letter-spacing: 2px; margin-bottom: 10px; text-align: center;
+}
+.bindrow {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 5px 0;
+}
+.bindname { font-size: 13px; opacity: .8; }
+.bindkey {
+  pointer-events: auto; cursor: pointer;
+  font-family: inherit; font-size: 12px; font-weight: 800;
+  min-width: 92px; padding: 7px 10px;
+  color: #e8e8f0;
+  background: rgba(255, 255, 255, .07);
+  border: 2px solid rgba(255, 255, 255, .16);
+  border-radius: 8px;
+  transition: border-color .15s, background .15s;
+}
+.bindkey:hover { border-color: rgba(157, 255, 94, .55); background: rgba(157, 255, 94, .10); }
+.bindkey.listening {
+  border-color: #ffd75e; background: rgba(255, 215, 94, .16); color: #ffd75e;
+  animation: bindPulse .9s ease-in-out infinite;
+}
+@keyframes bindPulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+
+.bindmsg { font-size: 12.5px; min-height: 20px; margin: 10px 0 16px; color: #9dff5e; opacity: .9; }
+.bindmsg.bad { color: #ff8a8a; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bindkey.listening { animation: none; }
+}
+
 /* modo daltônico */
 .cb-toggle {
   pointer-events: auto; cursor: pointer;
