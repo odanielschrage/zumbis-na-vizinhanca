@@ -38,8 +38,32 @@ e valem para os dois jogadores independentemente.
 
 ## Visual
 
-Todos os personagens são desenhados num estilo **cartoon 2D sombreado** (contorno,
-gradiente e luz/sombra, sem pixel) — renderizados por `js/cartoon.js`.
+Os personagens, monstros, chefes, vizinhos e armas são **sprites raster gerados por IA**
+(Gemini), carregados de `assets/ai/` por `js/aiart.js`. A consistência entre vistas
+e entre personagens é garantida por construção:
+
+- cada personagem nasce numa **única imagem** com frente, costas e perfil;
+- todas as gerações usam a mesma âncora de estilo, e os monstros/armas/poses são
+  gerados tendo a ficha do Rex (ou do zumbi) como **imagem de referência**;
+- a **arma é um asset isolado**, composto no ponto da mão em tempo de execução —
+  idêntica em qualquer personagem e vista, e continua dinâmica no sprite;
+- o fundo verde puro é removido no carregamento (chroma key), e as fichas são
+  fatiadas automaticamente.
+
+Enquanto os assets carregam, o jogo desenha com o motor **cartoon 2D** de
+`js/cartoon.js`, que também fornece o buffer de espelhamento/flash usado pelos dois.
+
+**Para (re)gerar arte:** `tools/gen-art.js` contém todos os prompts. Precisa de
+`GEMINI_API_KEY` no ambiente:
+
+```
+node tools/gen-art.js                      # lista os jobs
+node tools/gen-art.js rex_aim --ref assets/ai/rex.jpg
+node tools/gen-art.js werewolf --ref assets/ai/zombie.jpg
+```
+
+Passe sempre a ficha de referência (`--ref`) para o novo asset sair no mesmo estilo.
+`ai-preview.html` mostra o elenco em cena, em escala de jogo.
 
 ## Personagens (com perks)
 
@@ -144,11 +168,16 @@ js/world.js       — 3 mapas temáticos: obstáculos, construções com interio
 js/entities.js    — Player, Zombie (7 tipos de monstro), Neighbor, Bullet, EnemyShot,
                     Pickup, Boss e tabelas de armas/chefes (desenho via cartoon.js)
 js/game.js        — loop, fases/modo história (MAP_CYCLE), chefes, combo, câmera, HUD
+js/aiart.js       — sprites gerados por IA: carregamento, chroma key, fatiamento das fichas,
+                    detecção da mão e composição herói+arma / monstro por vista
+tools/gen-art.js  — gerador de arte (Gemini): âncoras de estilo e prompts de todo o elenco
+assets/ai/        — fichas geradas (frente/costas/perfil por personagem) e armas
 ```
 
-> Observação: `js/pixel.js`, `js/sprites.js`, `sprites-preview.html` e
-> `cartoon-preview.html` são apenas laboratórios de arte usados no desenvolvimento
-> (não fazem parte do jogo em si).
+> Observação: `js/pixel.js`, `js/sprites.js`, `js/realistic.js`, `sprites-preview.html`,
+> `cartoon-preview.html`, `art-preview.html` e `ai-preview.html` são laboratórios de arte
+> usados no desenvolvimento (não fazem parte do jogo em si). Guardam o histórico das
+> direções testadas — pixel, vetor, cartoon, realista procedural — até chegar à arte por IA.
 
 ## Acessibilidade
 
