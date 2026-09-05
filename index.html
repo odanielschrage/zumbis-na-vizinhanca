@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zumbis na Vizinhança</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="topbar">
+    <div id="waveLabel">ONDA 1</div>
+    <div id="score">0</div>
+    <div id="money" class="stat"><i class="hicon"></i><span class="hval">0</span></div>
+    <div id="zleft" class="stat"><i class="hicon"></i><span class="hval">0</span></div>
+    <div id="keys" class="stat hidden"><i class="hicon"></i><span class="hval">0</span></div>
+  </div>
+  <div id="combo" class="hidden">
+    <span id="comboMult">x2</span>
+    <div id="comboBar"><div id="comboFill"></div></div>
+  </div>
+  <div id="bossbar" class="hidden">
+    <div id="bossname">CHEFE</div>
+    <div id="bossHp"><div id="bossHpFill"></div></div>
+  </div>
+  <div id="objective" class="hidden"></div>
+  <div class="pcard" id="p1card">
+    <div class="pname" style="color:#5ec8ff">JOGADOR 1</div>
+    <div class="hpbar"><div class="hpfill" id="p1hp"></div></div>
+    <div class="weap" id="p1weap"><i class="wicon"></i><span class="wtext">Pistola · ∞</span></div>
+  </div>
+  <div class="pcard right hidden" id="p2card">
+    <div class="pname" style="color:#ffb84d">JOGADOR 2</div>
+    <div class="hpbar"><div class="hpfill" id="p2hp"></div></div>
+    <div class="weap" id="p2weap"><i class="wicon"></i><span class="wtext">Pistola · ∞</span></div>
+  </div>
+  <div id="banner" class="hidden"></div>
+</div>
+
+<!-- MENU -->
+<div id="menu" class="overlay">
+  <div class="panel">
+    <h1>ZUMBIS<span>na</span>VIZINHANÇA</h1>
+    <p class="tag">Modo história: avance pelas fases, troque de cenário e enfrente um chefe ao fim de cada uma. Sobreviva e resgate os vizinhos!</p>
+
+    <div class="diffs">
+      <button class="diffbtn" data-diff="easy">😌 FÁCIL</button>
+      <button class="diffbtn sel" data-diff="normal">🙂 NORMAL</button>
+      <button class="diffbtn" data-diff="hard">💀 DIFÍCIL</button>
+    </div>
+    <p id="highline" class="hint" style="margin-bottom:14px"></p>
+
+    <div class="btns">
+      <button id="btn1p" class="big">▶ &nbsp;1 JOGADOR</button>
+      <button id="btn2p" class="big alt">👥 &nbsp;2 JOGADORES</button>
+    </div>
+    <div class="controls">
+      <div>
+        <h3 style="color:#5ec8ff">Jogador 1</h3>
+        <p><b>WASD</b> mover · <b>Mouse</b> mirar<br><b>Clique / Espaço</b> atirar · <b>Q</b> trocar arma</p>
+      </div>
+      <div>
+        <h3 style="color:#ffb84d">Jogador 2</h3>
+        <p><b>Setas</b> mover<br><b>Enter</b> atirar · <b>Shift Dir.</b> trocar arma</p>
+      </div>
+    </div>
+    <p class="hint">Resgate vizinhos 🙋 · Atire nos barris 💥 · Ache chaves 🔑 e abra cofres 🔒 · <b>Esc</b> pausa</p>
+    <div class="audio-set">
+      <span>🎵</span><input type="range" class="vol vol-music" min="0" max="100" title="Música">
+      <span>🔊</span><input type="range" class="vol vol-sfx" min="0" max="100" title="Efeitos">
+    </div>
+    <label class="cb-toggle"><input type="checkbox" id="cbMode"> Modo daltônico (cores acessíveis)</label>
+  </div>
+</div>
+
+<!-- SELEÇÃO DE PERSONAGEM -->
+<div id="charselect" class="overlay hidden">
+  <div class="panel">
+    <h2 id="csPrompt">ESCOLHA SEU HERÓI</h2>
+    <div id="charrow"></div>
+    <div id="csPicks"></div>
+    <div class="btns">
+      <button id="csBack" class="big alt">◀ VOLTAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOJA (entre fases) -->
+<div id="shop" class="overlay hidden">
+  <div class="panel">
+    <h2 id="shopTitle">LOJA</h2>
+    <p class="tag">Fim da fase! Gaste seu dinheiro antes de seguir (sua pontuação não cai). <span id="shopMoney">💰 0</span></p>
+    <div id="shopItems"></div>
+    <div class="btns">
+      <button id="shopGo" class="big">▶ PRÓXIMA FASE</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAUSE -->
+<div id="pause" class="overlay hidden">
+  <div class="panel small">
+    <h2>PAUSADO</h2>
+    <div class="btns">
+      <button id="btnResume" class="big">CONTINUAR</button>
+      <button id="btnQuit" class="big alt">SAIR PARA O MENU</button>
+    </div>
+    <div class="audio-set">
+      <span>🎵</span><input type="range" class="vol vol-music" min="0" max="100" title="Música">
+      <span>🔊</span><input type="range" class="vol vol-sfx" min="0" max="100" title="Efeitos">
+    </div>
+  </div>
+</div>
+
+<!-- GAME OVER -->
+<div id="gameover" class="overlay hidden">
+  <div class="panel small">
+    <h2 class="red">VOCÊ VIROU JANTAR</h2>
+    <div id="stats"></div>
+    <div class="btns">
+      <button id="btnRetry" class="big">↻ JOGAR DE NOVO</button>
+      <button id="btnMenu" class="big alt">MENU</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/utils.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/input.js"></script>
+<script src="js/particles.js"></script>
+<script src="js/cartoon.js"></script>
+<script src="js/world.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

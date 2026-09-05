@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Herói × Arma</title>
+<style>
+  body { margin: 0; background: #2a2e3a; color: #e8e8f0; font-family: system-ui, sans-serif; }
+  h1 { text-align: center; padding: 12px; font-size: 18px; letter-spacing: 2px; }
+  .row { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; padding: 8px; }
+  .cell { text-align: center; }
+  .cell .name { margin-top: 4px; font-size: 12px; font-weight: 700; letter-spacing: 1px; }
+  .grass { background: radial-gradient(circle at 50% 40%, #3a5a2c, #24401c); border-radius: 12px; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+  <h1>O SPRITE REFLETE A ARMA EQUIPADA (Zeca, de perfil →)</h1>
+  <div class="row" id="rows"></div>
+
+<script src="js/cartoon.js"></script>
+<script>
+  const WLABEL = { pistol:'🔫 Pistola', smg:'💥 Metralhadora', shotgun:'🎯 Escopeta', flamethrower:'🔥 Lança-chamas', rocket:'🚀 Bazuca', freeze:'❄️ Congelador' };
+  const weapons = ['pistol','smg','shotgun','flamethrower','rocket','freeze'];
+  const canvases = [];
+  const container = document.getElementById('rows');
+  weapons.forEach(w => {
+    const cell = document.createElement('div'); cell.className='cell';
+    const cv = document.createElement('canvas'); cv.width=160; cv.height=185; cv.className='grass';
+    const nm = document.createElement('div'); nm.className='name'; nm.textContent = WLABEL[w];
+    cell.append(cv, nm); container.appendChild(cell);
+    canvases.push({ ctx: cv.getContext('2d'), W:160, H:185, w });
+  });
+  function frame(now){
+    const t = now/1000;
+    for (const c of canvases){
+      c.ctx.clearRect(0,0,c.W,c.H);
+      CARTOON.hero(c.ctx, 'zeca', c.W/2, 172, 1.5, t, { moving:true, view:'side', weapon:c.w });
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+</script>
+</body>
+</html>

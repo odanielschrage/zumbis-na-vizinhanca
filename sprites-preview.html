@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Amostra de Pixel Art</title>
+<style>
+  body { margin: 0; background: #2a2e3a; color: #e8e8f0; font-family: system-ui, sans-serif; }
+  h1 { text-align: center; padding: 16px; font-size: 20px; letter-spacing: 2px; }
+  .row { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; padding: 16px; }
+  .cell { text-align: center; }
+  .cell .name { margin-top: 8px; font-size: 13px; font-weight: 700; letter-spacing: 1px; }
+  .grass { background: #2f4a24; border-radius: 10px; }
+  .street { background: #2a2c31; border-radius: 10px; }
+  canvas { image-rendering: pixelated; display: block; }
+  .warn { color: #ff8a8a; text-align: center; font-size: 13px; min-height: 18px; }
+</style>
+</head>
+<body>
+  <h1>AMOSTRA DE PIXEL ART — HERÓI + 3 MONSTROS</h1>
+  <div class="warn" id="warn"></div>
+  <div class="row" id="grassRow"></div>
+  <div class="row" id="streetRow"></div>
+
+<script src="js/pixel.js"></script>
+<script src="js/sprites.js"></script>
+<script>
+  const SCALE = 11;
+  const order = [
+    ['hero_down', 'ZECA (frente)'],
+    ['hero_side', 'ZECA (perfil)'],
+    ['zombie', 'ZUMBI'],
+    ['maniac', 'MANÍACO'],
+    ['alien', 'MARCIANO'],
+  ];
+  const warns = [];
+  function build(container, bgClass) {
+    for (const [key, label] of order) {
+      const def = SPRITES[key];
+      if (!Pixel.check(key, def.rows)) warns.push(key);
+      const spr = Pixel.make(def.rows, PAL[def.pal]);
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      const cv = document.createElement('canvas');
+      cv.width = spr.width * SCALE; cv.height = spr.height * SCALE;
+      cv.className = bgClass;
+      const ctx = cv.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(spr, 0, 0, cv.width, cv.height);
+      const nm = document.createElement('div');
+      nm.className = 'name'; nm.textContent = label;
+      cell.append(cv, nm);
+      container.appendChild(cell);
+    }
+  }
+  build(document.getElementById('grassRow'), 'grass');
+  build(document.getElementById('streetRow'), 'street');
+  document.getElementById('warn').textContent = warns.length ? ('Larguras irregulares: ' + [...new Set(warns)].join(', ')) : '';
+</script>
+</body>
+</html>

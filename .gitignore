@@ -1,0 +1,28 @@
+# dependências (o jogo não tem nenhuma; isto é só para o servidor local via npx)
+node_modules/
+package-lock.json
+
+# build / deploy
+.vercel/
+dist/
+build/
+
+# configurações locais do Claude Code (o launch.json É versionado)
+.claude/settings.local.json
+
+# sistema operacional
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# editores
+.vscode/
+.idea/
+*.swp
+
+# logs e temporários
+*.log
+npm-debug.log*
+.env
+.env.local
