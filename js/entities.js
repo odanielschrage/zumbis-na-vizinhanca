@@ -540,9 +540,11 @@ class Zombie {
     this.type = type;
     this.x = x; this.y = y;
     this.r = def.r;
-    this.hp = def.hp * waveScale * D.zhp;
+    // modificadores da fase (horda/blindados/tempestade) multiplicam vida e velocidade
+    const M = (typeof Game !== 'undefined' && Game.modFx) ? { zhp: Game.modFx('zhp'), zspd: Game.modFx('zspd') } : { zhp: 1, zspd: 1 };
+    this.hp = def.hp * waveScale * D.zhp * M.zhp;
     this.maxHp = this.hp;
-    this.speed = def.speed * rand(0.85, 1.15) * (1 + (waveScale - 1) * 0.35);
+    this.speed = def.speed * rand(0.85, 1.15) * (1 + (waveScale - 1) * 0.35) * M.zspd;
     this.dmg = def.dmg * D.zdmg;
     this.score = def.score;
     this.color = def.color;

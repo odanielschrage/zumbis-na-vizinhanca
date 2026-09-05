@@ -198,6 +198,26 @@ Ao vencer o chefe de cada fase você volta ao **Abrigo**, com três abas:
 O nível efetivo de uma estrutura é *níveis comprados + moradores na função*. Tudo isso
 é progressão **dentro da partida** (recomeça a cada jogo), como as demais compras.
 
+## Modificadores de fase
+
+A partir da fase 2, cada fase sorteia um modificador (dois a partir da fase 5), para a
+fase 6 não ser a fase 3 com números maiores:
+
+| | Efeito |
+|---|---|
+| 🌫 Névoa | luz do herói com 60% do alcance |
+| 🌑 Noite fechada | postes apagados e escuridão maior |
+| 🧟 Horda | +50% de zumbis, porém com 80% da vida |
+| 🛡 Blindados | zumbis com +40% de vida |
+| 💨 Velozes | metade dos zumbis comuns viram corredores |
+| 🌧 Tempestade | chuva na tela; zumbis 15% mais rápidos |
+| 💰 Fortuna | +50% de dinheiro por abate |
+| ☣ Infestação | dois ninhos extras nascem na fase |
+
+Os modificadores da próxima fase são **anunciados no Abrigo**, antes de você investir —
+dá pra comprar Gerador contra a Névoa, Enfermaria contra a Horda, Torretas contra a
+Infestação. Durante a fase, ficam listados no canto superior esquerdo da HUD.
+
 ## Acessibilidade
 
 - **Modo daltônico** (opção no menu): troca os pares verde/vermelho por azul/laranja

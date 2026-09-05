@@ -12,6 +12,20 @@ const DIFFS = {
 // arma → ícone desenhado (cartão do jogador na HUD)
 const WEAP_ICON = { pistol: 'gun', smg: 'gun', shotgun: 'gun', flamethrower: 'fire', rocket: 'rocket', freeze: 'snow' };
 
+// ---------- Modificadores de fase ----------
+// A partir da fase 2 cada fase sorteia um (duas a partir da 5). São anunciados no Abrigo
+// ANTES da fase, para dar pra investir contra eles. Multiplicadores se acumulam.
+const MODS = {
+  fog:     { name: 'Névoa',         icon: '🌫', desc: 'visibilidade reduzida',                 light: 0.6 },
+  night:   { name: 'Noite fechada', icon: '🌑', desc: 'postes apagados, escuridão maior',      night: true },
+  horde:   { name: 'Horda',         icon: '🧟', desc: '+50% de zumbis, porém mais frágeis',    count: 1.5, zhp: 0.8 },
+  armored: { name: 'Blindados',     icon: '🛡', desc: 'zumbis com +40% de vida',               zhp: 1.4, count: 0.9 },
+  fast:    { name: 'Velozes',       icon: '💨', desc: 'metade dos zumbis comuns viram corredores', fast: true },
+  storm:   { name: 'Tempestade',    icon: '🌧', desc: 'chuva; zumbis 15% mais rápidos',         rain: true, zspd: 1.15 },
+  fortune: { name: 'Fortuna',       icon: '💰', desc: '+50% de dinheiro por abate',            money: 1.5 },
+  nests:   { name: 'Infestação',    icon: '☣', desc: 'dois ninhos extras nascem na fase',     nests: 2 },
+};
+
 // ---------- Abrigo: estruturas (compradas por nível) e funções dos moradores ----------
 // Nível efetivo = níveis comprados + moradores na função. Cada vizinho resgatado vira um
 // morador com uma função, então resgatar deixa de ser só pontos e passa a ser progressão.
@@ -67,6 +81,8 @@ const Game = {
   corpses: [],          // corpos de zumbis (animação de morte: tombar+achatar+fade)
   base: null,           // abrigo: estruturas por nível + moradores (vizinhos resgatados)
   turrets: [],          // torretas do abrigo (estrutura 'Torretas' + engenheiros)
+  mods: [],             // modificadores da fase atual (ids de MODS)
+  nextMods: [],         // sorteados ao vencer o chefe; anunciados no Abrigo
   transT: 0,            // transição de fade ao entrar em nova fase (cobre a troca de cenário)
   transDur: 0.65,
   cbMode: false,        // modo daltônico (cores acessíveis)
@@ -303,6 +319,7 @@ const Game = {
     this.transT = 0;
     this.base = this.newBase();
     this.turrets = [];
+    this.mods = []; this.nextMods = []; this._modsKey = null;
     this.bullets = [];
     this.enemyShots = [];
     this.pickups = [];
@@ -484,6 +501,46 @@ const Game = {
     }
   },
 
+  // ---------- modificadores de fase ----------
+  pickMods(fase) {
+    if (fase < 2) return [];
+    const n = fase >= 5 ? 2 : 1, keys = Object.keys(MODS), out = [];
+    while (out.length < n) { const k = pick(keys); if (!out.includes(k)) out.push(k); }
+    return out;
+  },
+  modFx(key) { let v = 1; for (const id of this.mods) { const m = MODS[id]; if (m[key] != null) v *= m[key]; } return v; },
+  modHas(key) { return this.mods.some(id => MODS[id][key]); },
+  modSum(key) { return this.mods.reduce((s, id) => s + (MODS[id][key] || 0), 0); },
+  modsLabel(ids) { return ids.map(id => `${MODS[id].icon} ${MODS[id].name}`).join(' · '); },
+
+  // pills no canto superior esquerdo da HUD (só redesenha quando muda)
+  renderMods() {
+    const el = document.getElementById('mods');
+    const key = this.state === 'playing' ? this.mods.join() : '';
+    if (this._modsKey === key) return;
+    this._modsKey = key;
+    el.classList.toggle('hidden', !key);
+    el.innerHTML = this.mods.map(id => `<div class="mod" title="${MODS[id].desc}">${MODS[id].icon} ${MODS[id].name}</div>`).join('');
+  },
+
+  // chuva em espaço de tela (barata: posições derivadas do tempo, sem estado)
+  renderRain(ctx) {
+    const t = this.time, W = this.W, H = this.H;
+    ctx.save();
+    ctx.fillStyle = 'rgba(40,60,110,.10)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(180,200,255,.32)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let i = 0; i < 150; i++) {
+      const x = ((i * 137.7 + t * 520) % (W + 200)) - 100;
+      const y = ((i * 91.3 + t * 1100 + i * i) % (H + 100)) - 50;
+      ctx.moveTo(x, y); ctx.lineTo(x - 5, y + 20);
+    }
+    ctx.stroke();
+    ctx.restore();
+  },
+
   openShop() {
     this.state = 'shop';
     Music.setMode('menu');
@@ -493,6 +550,9 @@ const Game = {
     this.renderShop();
     this.renderBase();
     this.switchTab('tabRooms');
+    document.getElementById('nextMods').innerHTML = this.nextMods.length
+      ? `Próxima fase: <b>${this.modsLabel(this.nextMods)}</b> — ${this.nextMods.map(id => MODS[id].desc).join('; ')}.`
+      : '';
     show('shop');
   },
 
@@ -588,7 +648,14 @@ const Game = {
     this.placeTurrets();   // torretas do abrigo (níveis comprados + engenheiros)
     if (faseStart) {
       this.transT = this.transDur;   // entrada com fade (revela o novo cenário)
-      this.banner(`FASE ${this.fase}`, THEMES[this.mapKey].name.toUpperCase(), 2.6, 'gold');
+      // modificadores da fase (os anunciados no Abrigo; na 1ª fase não há)
+      this.mods = this.nextMods.length ? this.nextMods : this.pickMods(this.fase);
+      this.nextMods = [];
+      for (let i = 0; i < this.modSum('nests'); i++) {
+        const s = World.spotOutside(200);
+        if (s) this.zombies.push(new Nest(s.x, s.y, this.waveScale));
+      }
+      this.banner(`FASE ${this.fase}`, THEMES[this.mapKey].name.toUpperCase() + (this.mods.length ? ' · ' + this.modsLabel(this.mods) : ''), 3, 'gold');
       // baús de tesouro escondidos dentro das construções (recompensa por explorar)
       const nLoot = 1 + (Math.random() < 0.6 ? 1 : 0);
       for (let i = 0; i < nLoot; i++) {
@@ -621,11 +688,11 @@ const Game = {
 
     if (this.isBossWave) {
       // onda de chefe: alguns lacaios + o chefe
-      this.spawnQueue = Math.min(Math.round((6 + w) * this.diffDef.count), 24);
+      this.spawnQueue = Math.min(Math.round((6 + w) * this.diffDef.count * this.modFx('count')), 30);
       this.spawnT = 0;
       this.spawnBoss();
     } else {
-      this.spawnQueue = Math.min(Math.round((8 + w * 5) * this.diffDef.count), 80);
+      this.spawnQueue = Math.min(Math.round((8 + w * 5) * this.diffDef.count * this.modFx('count')), 100);
       this.spawnT = 0;
       // vizinhos para resgatar (alguns escondidos dentro de construções)
       const nCount = Math.min(2 + Math.floor(w / 2), 5);
@@ -762,6 +829,7 @@ const Game = {
     else if (w >= 2 && r < 0.38) type = 'maniac';
     else if (w >= 2 && r < 0.50) type = 'doll';
     else if (w >= 2 && r < 0.66) type = 'runner';
+    if (type === 'walker' && this.modHas('fast') && Math.random() < 0.5) type = 'runner';   // modificador Velozes
     this.zombies.push(new Zombie(type, x, y, this.waveScale));
   },
 
@@ -780,7 +848,7 @@ const Game = {
   comboMult() { return Math.min(5, 1 + Math.floor(this.combo / 5)); },
 
   // ganho de pontos = recorde (score) + dinheiro gastável (money)
-  addScore(pts) { pts = Math.round(pts); this.score += pts; this.money += pts; return pts; },
+  addScore(pts) { pts = Math.round(pts); this.score += pts; this.money += Math.round(pts * this.modFx('money')); return pts; },
   penalize(pts) { this.score = Math.max(0, this.score - pts); this.money = Math.max(0, this.money - pts); },
 
   dropItem(x, y) {
@@ -984,6 +1052,7 @@ const Game = {
       // fim de fase (onda de chefe limpa) → abre a LOJA; senão, próxima onda
       if (this.isBossWave) {
         this.intermissionT = 999;   // trava a onda até a loja abrir (evita re-disparo)
+        this.nextMods = this.pickMods(this.fase + 1);   // modificadores da próxima fase (anunciados no Abrigo)
         this.banner('FASE VENCIDA!', `+${bonus} de bônus`, 1.6, 'gold');
         setTimeout(() => this.openShop(), 900);
       } else {
@@ -1485,6 +1554,7 @@ const Game = {
     keysEl.classList.toggle('hidden', this.keys <= 0);
     if (this.keys > 0) keysEl.querySelector('.hval').textContent = this.keys;
 
+    this.renderMods();
     // aviso da Loja: ela abre sozinha ao vencer o chefe (5ª onda de cada fase)
     const shopEl = document.getElementById('shopHint');
     const playing = this.state === 'playing';
@@ -1662,6 +1732,7 @@ const Game = {
     this.renderLighting(shx, shy);
     this.renderVignette();
     this.renderLowHealth();
+    if (this.modHas('rain')) this.renderRain(ctx);
 
     // indicadores de vizinhos fora da tela
     if (this.state === 'playing') this.renderIndicators();
@@ -1746,6 +1817,7 @@ const Game = {
     g.clearRect(0, 0, this.W, this.H);
     g.fillStyle = World.theme.ambient;
     g.fillRect(0, 0, this.W, this.H);
+    if (this.modHas('night')) { g.fillStyle = 'rgba(2,3,8,.55)'; g.fillRect(0, 0, this.W, this.H); }   // noite fechada
 
     g.globalCompositeOperation = 'destination-out';
     const toScreen = (wx, wy) => [
@@ -1764,9 +1836,9 @@ const Game = {
       g.fill();
     };
 
-    const lf = 1 + 0.20 * this.baseLvl('generator');   // gerador do abrigo amplia a luz
+    const lf = (1 + 0.20 * this.baseLvl('generator')) * this.modFx('light');   // gerador amplia a luz; névoa reduz
     for (const p of this.players) if (p.alive) { hole(p.x, p.y, 380 * lf, 0.98); hole(p.x, p.y, 620 * lf, 0.35); }
-    for (const l of World.lamps) hole(l.x, l.y - 40, 250, 0.85);
+    if (!this.modHas('night')) for (const l of World.lamps) hole(l.x, l.y - 40, 250, 0.85);   // postes apagam na noite fechada
     for (const n of this.neighbors) hole(n.x, n.y, 90, 0.5);
     for (const f of this.flashes) hole(f.x, f.y, 190, 0.9);
     for (const s of this.enemyShots) hole(s.x, s.y, 55, 0.45);

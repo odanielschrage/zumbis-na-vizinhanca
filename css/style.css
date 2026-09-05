@@ -411,6 +411,17 @@ button.big.alt {
   .bindkey.listening { animation: none; }
 }
 
+/* modificadores da fase: pills no canto superior esquerdo */
+#mods { position: absolute; top: 74px; left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.mod {
+  background: rgba(30, 8, 40, .62); border: 1px solid rgba(216, 106, 255, .45);
+  border-radius: 10px; padding: 5px 12px;
+  font-size: 12px; font-weight: 800; letter-spacing: 1px; color: #e6b3ff; white-space: nowrap;
+}
+.nextmods { font-size: 13px; color: #e6b3ff; margin: -14px 0 14px; line-height: 1.5; }
+.nextmods:empty { display: none; }
+.nextmods b { color: #fff; }
+
 /* abrigo (entre fases): abas estruturas / moradores / loja */
 .panel.wide { max-width: 780px; }
 .tabs { display: flex; gap: 8px; justify-content: center; margin: 4px 0 16px; }
