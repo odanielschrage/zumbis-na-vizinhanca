@@ -31,6 +31,14 @@ const AIART = {
   // vista → índice na ficha
   VIEW: { down: 0, up: 1, side: 2 },
 
+  // alturas de ORIGEM (antes do scale do blit), MEDIDAS contra as figuras cartoon que substituem
+  // (bbox opaco acima da linha dos pés em s=1), para os fatores de escala existentes
+  // (0.46 do herói, sscale dos monstros, r*0.024 do chefe) continuarem valendo
+  HH: 128,   // herói
+  MH: 109,   // monstro (walker)
+  CH: 92,    // civil
+  BH: 138,   // chefe
+
   // onde ficam as mãos nas vistas frente/costas (o perfil é detectado)
   HAND_FRAC: { down: { x: 0.50, y: 0.72 }, up: { x: 0.50, y: 0.80 } },
 
@@ -135,11 +143,10 @@ const AIART = {
   },
 
   // herói com a arma composta na mão. Chamado dentro de CARTOON.blit (flip/flash por conta dele).
-  // Altura fixa 104 = mesma do herói cartoon, para os fatores de escala existentes continuarem valendo.
   hero(g, look, cx, footY, view, weapon, t, moving) {
     const c = this.view(this.HERO[look] || 'rex_aim', view);
     if (!c) return false;
-    const H = 104, s = H / c.height, w = c.width * s;
+    const H = this.HH, s = H / c.height, w = c.width * s;
     const wd = this.WEAPON[weapon], wc = wd && this.sheets[wd.sheet] && this.sheets[wd.sheet][wd.i];
     // animação de caminhada por deslocamento: bob + leve inclinação (sem quadros extras)
     const bob = moving ? Math.abs(Math.sin(t * 9)) * 2.2 : Math.sin(t * 2) * 0.6;
@@ -167,9 +174,8 @@ const AIART = {
     return true;
   },
 
-  // monstro/chefe/civil: figura com bob de "arrasto". Altura 200 = altura do monstro cartoon em s=1,
-  // para o `sscale` de cada ZTYPE continuar valendo.
-  monster(g, sheet, cx, footY, view, t, height = 200) {
+  // monstro/chefe/civil: figura com bob de "arrasto"
+  monster(g, sheet, cx, footY, view, t, height = this.MH) {
     const c = this.view(sheet, view);
     if (!c) return false;
     const bob = Math.sin(t * 4) * 2.5;

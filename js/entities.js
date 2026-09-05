@@ -141,8 +141,12 @@ class Player {
     ctx.ellipse(this.x, this.y + 13, 15, 7, 0, 0, TAU);
     ctx.stroke();
     // sprite cartoon virado conforme a direção (frente / costas / perfil), com a arma equipada
-    CARTOON.blit(ctx, (g, gx, gy) => CARTOON.hero(g, this.look, gx, gy, 1, this.moving ? this.anim : time, { moving: this.moving, view: f.view, weapon: this.weapon }),
-      this.x, this.y + 14, { scale: 0.46, flip: f.flip, alpha: blink ? 0.45 : 1 });
+    const ht = this.moving ? this.anim : time;
+    CARTOON.blit(ctx, (g, gx, gy) => {
+      // sprite gerado por IA (arma composta na mão); cai no cartoon até os assets carregarem
+      if (!(AIART.ready && AIART.hero(g, this.look, gx, gy, f.view, this.weapon, ht, this.moving)))
+        CARTOON.hero(g, this.look, gx, gy, 1, ht, { moving: this.moving, view: f.view, weapon: this.weapon });
+    }, this.x, this.y + 14, { scale: 0.46, flip: f.flip, alpha: blink ? 0.45 : 1 });
     return;
 
     // (render vetorial antigo — substituído pelo cartoon acima)
@@ -659,7 +663,10 @@ class Zombie {
     const f = CARTOON.facing(this.dir);
     const anim = this.anim + this.animOff;
     const frozen = this.frozen > 0;
-    CARTOON.blit(ctx, (g, cx, cy) => CARTOON.monster(g, this.sprite, cx, cy, 1, anim, { view: f.view }), this.x, this.y + this.r * 0.9, {
+    CARTOON.blit(ctx, (g, cx, cy) => {
+      if (!(AIART.ready && AIART.monster(g, AIART.MONSTER[this.sprite], cx, cy, f.view, anim, AIART.MH)))
+        CARTOON.monster(g, this.sprite, cx, cy, 1, anim, { view: f.view });
+    }, this.x, this.y + this.r * 0.9, {
       scale: this.sscale,
       flip: f.flip,
       flash: this.hitFlash > 0 ? 0.85 : (frozen ? 0.5 : 0),
@@ -782,7 +789,10 @@ class Neighbor {
   }
 
   draw(ctx, time) {
-    CARTOON.blit(ctx, (g, gx, gy) => CARTOON.civilian(g, gx, gy, 1, this.anim, this.shirt), this.x, this.y + 12, { scale: 0.42 });
+    CARTOON.blit(ctx, (g, gx, gy) => {
+      if (!(AIART.ready && AIART.monster(g, 'civilian', gx, gy, 'down', this.anim, AIART.CH)))
+        CARTOON.civilian(g, gx, gy, 1, this.anim, this.shirt);
+    }, this.x, this.y + 12, { scale: 0.42 });
     // balão de socorro (VIP da escolta usa estrela)
     const by = this.y - 32 + Math.sin(time * 5) * 3;
     ctx.fillStyle = 'rgba(10,12,20,.7)';
@@ -1435,9 +1445,13 @@ class Boss {
     ctx.arc(this.x, this.y, this.r * 2.4, 0, TAU);
     ctx.fill();
 
-    // sprite cartoon do chefe
+    // sprite do chefe: IA (frente/costas/perfil) ou cartoon enquanto carrega
     const flip = Math.cos(this.dir) < 0;
-    CARTOON.blit(ctx, (g, gx, gy) => CARTOON.bossSprite(g, this.type, gx, gy, 1, this.anim), this.x, this.y + this.r * 0.9, {
+    const bview = CARTOON.facing(this.dir).view;
+    CARTOON.blit(ctx, (g, gx, gy) => {
+      if (!(AIART.ready && AIART.monster(g, AIART.BOSS[this.type], gx, gy, bview, this.anim, AIART.BH)))
+        CARTOON.bossSprite(g, this.type, gx, gy, 1, this.anim);
+    }, this.x, this.y + this.r * 0.9, {
       scale: this.r * 0.024,
       flip,
       alpha: this.alpha,

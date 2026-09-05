@@ -68,6 +68,10 @@ const Game = {
     this.resize();
     Input.init(this.canvas);
 
+    // sprites gerados por IA: carrega em segundo plano; até ficar pronto, os draw()
+    // caem no motor cartoon (AIART.ready === false)
+    AIART.load();
+
     // aba oculta: suspende o áudio (congela o currentTime, evita rajada de notas
     // ao voltar) e retoma ao refocar. O loop de rAF já pausa sozinho quando oculto.
     document.addEventListener('visibilitychange', () => {
@@ -814,7 +818,10 @@ const Game = {
       bg.addColorStop(1, '#1e222c');
       g.fillStyle = bg;
       g.fillRect(0, 0, 150, 170);
-      CARTOON.hero(g, CHARACTERS[i].id, 75, 160, 1.28, this.time + i * 0.7, { moving: false });
+      // retrato: sprite de IA (vista frontal da pose de mira) ou o cartoon enquanto carrega
+      const pc = AIART.ready && AIART.view(AIART.HERO[CHARACTERS[i].id], 'down');
+      if (pc) { const ph = 148, ps = ph / pc.height, pw = pc.width * ps; g.drawImage(pc, 75 - pw / 2, 162 - ph, pw, ph); }
+      else CARTOON.hero(g, CHARACTERS[i].id, 75, 160, 1.28, this.time + i * 0.7, { moving: false });
     }
   },
 
@@ -1418,8 +1425,10 @@ const Game = {
     const rot = c.rot * (fall * fall * (3 - 2 * fall));  // smoothstep até deitar
     const sy = 1 - 0.5 * fall;                      // achata para ~50%
     const alpha = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4; // fade só no fim
-    CARTOON.blit(ctx, (g, gx, gy) => CARTOON.monster(g, c.sprite, gx, gy, 1, c.anim, { view: c.view }),
-      c.x, c.y + c.r * 0.9, { scale: c.sscale, flip: c.flip, sy, rot, alpha: Math.max(0, alpha) });
+    CARTOON.blit(ctx, (g, gx, gy) => {
+      if (!(AIART.ready && AIART.monster(g, AIART.MONSTER[c.sprite], gx, gy, c.view, c.anim, AIART.MH)))
+        CARTOON.monster(g, c.sprite, gx, gy, 1, c.anim, { view: c.view });
+    }, c.x, c.y + c.r * 0.9, { scale: c.sscale, flip: c.flip, sy, rot, alpha: Math.max(0, alpha) });
   },
 
   // ---------- renderização ----------
