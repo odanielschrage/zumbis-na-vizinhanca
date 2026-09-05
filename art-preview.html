@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparação de estilo de arte — Zumbis na Vizinhança</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px 20px 60px;
+    background: #0b0d13; color: #e8e8f0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  h1 { font-size: 22px; letter-spacing: 2px; color: #9dff5e; text-align: center; margin: 0 0 6px; }
+  .sub { text-align: center; opacity: .6; font-size: 13px; margin: 0 0 26px; }
+  .row { display: flex; gap: 22px; justify-content: center; flex-wrap: wrap; }
+  .card {
+    background: #12151d; border: 1px solid rgba(255,255,255,.09);
+    border-radius: 14px; padding: 14px; width: 400px;
+  }
+  .card h2 { font-size: 14px; letter-spacing: 2px; margin: 0 0 2px; }
+  .card .tag { font-size: 11.5px; opacity: .55; margin: 0 0 10px; min-height: 30px; }
+  canvas { display: block; width: 100%; border-radius: 10px; background: #000; }
+  ul { margin: 12px 0 0; padding-left: 18px; font-size: 12px; opacity: .75; line-height: 1.75; }
+  .a h2 { color: #ff9e6b; } .b h2 { color: #5ec8ff; } .c h2 { color: #9dff5e; }
+  .foot { text-align: center; margin-top: 30px; font-size: 12.5px; opacity: .5; }
+  .ctl { text-align: center; margin: 18px 0 6px; }
+  button {
+    font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: 1px;
+    color: #e8e8f0; background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.18); border-radius: 8px;
+    padding: 8px 16px; cursor: pointer;
+  }
+  button:hover { background: rgba(255,255,255,.14); }
+</style>
+</head>
+<body>
+
+<h1>COMPARAÇÃO DE ESTILO DE ARTE</h1>
+<p class="sub">Mesmo herói (Rex) e mesmos zumbis, nos três tratamentos. Escolha pelo olho.</p>
+
+<div class="ctl">
+  <button id="toggle">⏸ Pausar animação</button>
+  <button id="zoom">🔍 Aproximar</button>
+</div>
+
+<div class="row">
+  <div class="card a">
+    <h2>A · ATUAL (CARTOON)</h2>
+    <p class="tag">O que está no jogo hoje: formas com contorno, proporção estilizada e cor chapada.</p>
+    <canvas id="cA" width="740" height="560"></canvas>
+    <ul>
+      <li>Contorno tonal em volta de tudo</li>
+      <li>Cabeça grande (~3 cabeças de altura)</li>
+      <li>Preenchimento chapado, cor saturada</li>
+      <li>Sombra: borrão elíptico sob os pés</li>
+    </ul>
+  </div>
+
+  <div class="card b">
+    <h2>B · HÍBRIDO</h2>
+    <p class="tag">Proporção e sombreamento realistas, mas mantendo cor viva e leitura fácil em jogo.</p>
+    <canvas id="cB" width="740" height="560"></canvas>
+    <ul>
+      <li><b>Sem contorno</b> (a mudança que mais pesa)</li>
+      <li>Proporção humana (~7,5 cabeças)</li>
+      <li>Volume cilíndrico por membro + luz de borda</li>
+      <li>Chão texturado, sombra projetada direcional</li>
+    </ul>
+  </div>
+
+  <div class="card c">
+    <h2>C · CINEMATOGRÁFICO</h2>
+    <p class="tag">As mesmas figuras de B, com o passe de pós-processamento por cima. O mais "realista" possível em canvas.</p>
+    <canvas id="cC" width="740" height="560"></canvas>
+    <ul>
+      <li>Tudo de B, mais:</li>
+      <li>Dessaturação + contraste de cinema</li>
+      <li>Correção de cor (sombra fria, luz quente)</li>
+      <li>Grão de filme, bloom e vinheta</li>
+    </ul>
+  </div>
+</div>
+
+<p class="foot">Laboratório de arte — não faz parte do jogo. Depois da sua escolha, o tratamento vira o motor de render.</p>
+
+<script src="js/utils.js"></script>
+<script src="js/cartoon.js"></script>
+<script src="js/realistic.js"></script>
+<script>
+const A = document.getElementById('cA').getContext('2d');
+const B = document.getElementById('cB').getContext('2d');
+const C = document.getElementById('cC').getContext('2d');
+const W = 740, H = 560, FOOT = 430, S = 2.6;
+
+// posições (herói ao centro, zumbis se aproximando)
+const ZOMBIES = [
+  { x: 190, y: FOOT - 40, s: S * 0.92, off: 0.0 },
+  { x: 560, y: FOOT + 26, s: S * 1.0,  off: 1.7 },
+];
+
+// enquadramento: normal (como no jogo) ou close-up (para julgar o acabamento)
+let closeUp = false;
+function view() {
+  return closeUp
+    ? { heroX: 250, foot: 520, s: S * 2.0, zombies: [{ x: 540, y: 512, s: S * 1.9, off: 1.7 }] }
+    : { heroX: 370, foot: FOOT, s: S, zombies: ZOMBIES };
+}
+
+// --- fundo do painel A: como o jogo é hoje (cor chapada + poucos detalhes) ---
+function groundFlat(g) {
+  g.fillStyle = '#2c3428';
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = '#3a3a3e';                       // rua
+  g.fillRect(0, FOOT - 150, W, 300);
+  g.strokeStyle = '#c8b45a'; g.lineWidth = 5;
+  g.setLineDash([34, 26]);
+  g.beginPath(); g.moveTo(0, FOOT); g.lineTo(W, FOOT); g.stroke();
+  g.setLineDash([]);
+}
+
+// --- fundo dos painéis B e C: textura procedural ---
+let texCache = null;
+function groundTextured(g) {
+  if (!texCache) {
+    texCache = document.createElement('canvas');
+    texCache.width = W; texCache.height = H;
+    const t = texCache.getContext('2d');
+    RFX.ground(t, W, H, '#39402f', { cracks: 10 });          // terra/grama
+    t.save();                                                 // faixa de asfalto
+    t.beginPath(); t.rect(0, FOOT - 150, W, 300); t.clip();
+    RFX.ground(t, W, H, '#3b3d42', { cracks: 26 });
+    t.restore();
+    t.strokeStyle = 'rgba(200,180,90,.75)'; t.lineWidth = 5;
+    t.setLineDash([34, 26]);
+    t.beginPath(); t.moveTo(0, FOOT); t.lineTo(W, FOOT); t.stroke();
+    t.setLineDash([]);
+  }
+  g.drawImage(texCache, 0, 0);
+}
+
+function drawA(t) {
+  const v = view();
+  A.clearRect(0, 0, W, H);
+  groundFlat(A);
+  for (const z of v.zombies) {
+    CARTOON.blit(A, (g, cx, cy) => CARTOON.monster(g, 'zombie', cx, cy, 1, t + z.off, { view: 'down' }),
+      z.x, z.y, { scale: z.s * 0.5 });
+  }
+  CARTOON.blit(A, (g, cx, cy) => CARTOON.hero(g, 'rex', cx, cy, 1, t, { moving: true, view: 'down', weapon: 'pistol' }),
+    v.heroX, v.foot, { scale: v.s * 0.5 });
+  // ambiente escuro do jogo
+  A.fillStyle = 'rgba(12,14,30,0.42)';
+  A.fillRect(0, 0, W, H);
+}
+
+function drawFigures(g, t) {
+  const v = view();
+  for (const z of v.zombies) REAL.zombie(g, z.x, z.y, z.s * 0.5, t + z.off);
+  REAL.hero(g, 'rex', v.heroX, v.foot, v.s * 0.5, t, { moving: true });
+}
+
+function drawB(t) {
+  B.clearRect(0, 0, W, H);
+  groundTextured(B);
+  drawFigures(B, t);
+  RFX.post(B.canvas, { vignette: 0.30, grain: 0.05 });
+}
+
+function drawC(t) {
+  C.clearRect(0, 0, W, H);
+  groundTextured(C);
+  drawFigures(C, t);
+  RFX.post(C.canvas, {
+    bloom: 0.16, grade: 0.40, sat: 0.62, contrast: 1.16,
+    grain: 0.13, vignette: 0.52,
+  });
+}
+
+let running = true, t0 = performance.now(), t = 0;
+function frame(now) {
+  if (running) t = (now - t0) / 1000;
+  drawA(t); drawB(t); drawC(t);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+document.getElementById('toggle').onclick = (e) => {
+  running = !running;
+  if (running) t0 = performance.now() - t * 1000;
+  e.target.textContent = running ? '⏸ Pausar animação' : '▶ Retomar animação';
+};
+
+document.getElementById('zoom').onclick = (e) => {
+  closeUp = !closeUp;
+  e.target.textContent = closeUp ? '↩ Afastar' : '🔍 Aproximar';
+};
+</script>
+</body>
+</html>
