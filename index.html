@@ -56,6 +56,7 @@
     <div class="btns">
       <button id="btn1p" class="big">▶ &nbsp;1 JOGADOR</button>
       <button id="btn2p" class="big alt">👥 &nbsp;2 JOGADORES</button>
+      <button id="btnOptions" class="big alt">⚙ &nbsp;OPÇÕES</button>
     </div>
     <div class="controls">
       <div>
@@ -67,13 +68,37 @@
         <p id="p2hint"></p>
       </div>
     </div>
-    <button id="btnControls" class="linkbtn">⌨ CONFIGURAR CONTROLES</button>
     <p class="hint">Resgate vizinhos 🙋 · Atire nos barris 💥 · Ache chaves 🔑 e abra cofres 🔒 · <b>Esc</b> pausa</p>
-    <div class="audio-set">
-      <span>🎵</span><input type="range" class="vol vol-music" min="0" max="100" title="Música">
-      <span>🔊</span><input type="range" class="vol vol-sfx" min="0" max="100" title="Efeitos">
+  </div>
+</div>
+
+<!-- OPÇÕES -->
+<div id="options" class="overlay hidden">
+  <div class="panel">
+    <h2>OPÇÕES</h2>
+
+    <div class="optgroup">
+      <h3>Controles</h3>
+      <p class="opthint">Escolha as teclas de cada jogador — movimento, tiro e troca de arma.</p>
+      <button id="btnControls" class="big">⌨ &nbsp;CONFIGURAR TECLAS</button>
     </div>
-    <label class="cb-toggle"><input type="checkbox" id="cbMode"> Modo daltônico (cores acessíveis)</label>
+
+    <div class="optgroup">
+      <h3>Áudio</h3>
+      <div class="audio-set">
+        <span>🎵</span><input type="range" class="vol vol-music" min="0" max="100" title="Música">
+        <span>🔊</span><input type="range" class="vol vol-sfx" min="0" max="100" title="Efeitos">
+      </div>
+    </div>
+
+    <div class="optgroup">
+      <h3>Acessibilidade</h3>
+      <label class="cb-toggle"><input type="checkbox" id="cbMode"> Modo daltônico (cores acessíveis)</label>
+    </div>
+
+    <div class="btns">
+      <button id="optBack" class="big alt">◀ VOLTAR</button>
+    </div>
   </div>
 </div>
 

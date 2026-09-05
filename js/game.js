@@ -96,7 +96,9 @@ const Game = {
     // controles remapeáveis (persistidos em zv_keys)
     Controls.load();
     this.updateControlHints();
-    document.getElementById('btnControls').onclick = () => { Sound.init(); Sound.click(); this.openControls('menu'); };
+    document.getElementById('btnOptions').onclick = () => { Sound.init(); Sound.click(); this.openOptions(); };
+    document.getElementById('optBack').onclick = () => { Sound.click(); this.closeOptions(); };
+    document.getElementById('btnControls').onclick = () => { Sound.init(); Sound.click(); this.openControls('options'); };
     document.getElementById('btnPauseControls').onclick = () => { Sound.click(); this.openControls('pause'); };
     document.getElementById('ctrlBack').onclick = () => { Sound.click(); this.closeControls(); };
     document.getElementById('ctrlReset').onclick = () => {
@@ -784,9 +786,11 @@ const Game = {
       if (this.hitStopT > 0) this.hitStopT -= dt;
       else this.update(dt);
     }
-    // com a tela de controles aberta, Esc fecha ela (não despausa o jogo por baixo)
+    // Esc fecha a tela aberta (sem despausar o jogo por baixo dos overlays)
     if (this.controlsOpen) {
       if (Input.justPressed('Escape')) this.closeControls();
+    } else if (this.optionsOpen) {
+      if (Input.justPressed('Escape')) this.closeOptions();
     } else if (this.state === 'playing' && Input.justPressed('Escape')) {
       this.setPaused(!this.paused);
     }
@@ -1182,6 +1186,20 @@ const Game = {
   },
 
   // ---------- HUD ----------
+  // ---------- opções ----------
+  openOptions() {
+    this.optionsOpen = true;
+    hide('menu');
+    show('options');
+  },
+
+  closeOptions() {
+    this.optionsOpen = false;
+    hide('options');
+    show('menu');
+    this.updateControlHints();
+  },
+
   // ---------- controles remapeáveis ----------
   openControls(from) {
     this.ctrlReturn = from;              // 'menu' ou 'pause'

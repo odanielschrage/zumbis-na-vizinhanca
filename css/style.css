@@ -340,17 +340,21 @@ button.big.alt {
 }
 #stats b { color: #9dff5e; font-size: 20px; }
 
-/* botão discreto (ex.: "configurar controles" no menu) */
-.linkbtn {
-  pointer-events: auto; cursor: pointer;
-  font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: 1px;
-  color: #9dff5e;
-  background: rgba(157, 255, 94, .08);
-  border: 1px solid rgba(157, 255, 94, .3);
-  border-radius: 8px; padding: 8px 16px; margin-top: 14px;
-  transition: background .15s, transform .1s;
+/* tela de opções: grupos (controles / áudio / acessibilidade) */
+.optgroup {
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(255, 255, 255, .09);
+  border-radius: 12px;
+  padding: 16px 20px 18px;
+  margin-bottom: 14px;
 }
-.linkbtn:hover { background: rgba(157, 255, 94, .16); transform: translateY(-1px); }
+.optgroup h3 {
+  font-size: 12px; letter-spacing: 2px; color: #9dff5e;
+  text-transform: uppercase; margin-bottom: 6px;
+}
+.opthint { font-size: 12.5px; opacity: .6; margin-bottom: 12px; }
+.optgroup .audio-set,
+.optgroup .cb-toggle { margin-top: 0; }
 
 /* tela de controles (remapeamento) */
 #bindsGrid {
