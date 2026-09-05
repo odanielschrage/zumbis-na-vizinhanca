@@ -121,6 +121,14 @@ const ICON = {
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-1.6, 3); ctx.lineTo(1.6, 3); ctx.closePath(); ctx.fill(); // nariz
     this._stroke(ctx, '#1e2a12', 1); ctx.beginPath(); ctx.moveTo(-3, 5.4); ctx.lineTo(3, 5.4); ctx.moveTo(0, 4); ctx.lineTo(0, 8); ctx.stroke(); // dentes
   },
+  cart(ctx, c) {                 // loja (aviso na HUD)
+    c = c || '#ffd75e';
+    this._stroke(ctx, c, 2);
+    ctx.beginPath(); ctx.moveTo(-9, -6); ctx.lineTo(-6, -6); ctx.lineTo(-3.5, 3); ctx.lineTo(7, 3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-5, -2); ctx.lineTo(8.5, -2); ctx.stroke();
+    ctx.fillStyle = c;
+    ctx.beginPath(); ctx.arc(-2, 6.5, 1.8, 0, TAU2); ctx.arc(6, 6.5, 1.8, 0, TAU2); ctx.fill();
+  },
   gun(ctx, c) {                  // arma genérica (cartão do jogador)
     c = c || '#cfd3d8';
     ctx.fillStyle = c; roundRectC(ctx, -8, -3, 15, 5, 1.5); ctx.fill();       // corpo/cano

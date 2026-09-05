@@ -1333,6 +1333,7 @@ const Game = {
     set('money', 'coin', '#ffd75e');
     set('zleft', 'skull', '#ff8a8a');
     set('keys', 'key', '#ffe066');
+    set('shopHint', 'cart', '#ffd75e');
   },
 
   updateHud() {
@@ -1346,6 +1347,18 @@ const Game = {
     const keysEl = document.getElementById('keys');
     keysEl.classList.toggle('hidden', this.keys <= 0);
     if (this.keys > 0) keysEl.querySelector('.hval').textContent = this.keys;
+
+    // aviso da Loja: ela abre sozinha ao vencer o chefe (5ª onda de cada fase)
+    const shopEl = document.getElementById('shopHint');
+    const playing = this.state === 'playing';
+    shopEl.classList.toggle('hidden', !playing);
+    if (playing) {
+      const left = (5 - this.wave % 5) % 5;   // ondas até o chefe
+      shopEl.querySelector('.hval').textContent =
+        this.isBossWave ? 'LOJA ABRE AO VENCER O CHEFE'
+        : left === 1 ? 'LOJA APÓS O CHEFE — PRÓXIMA ONDA'
+        : `LOJA APÓS O CHEFE — EM ${left} ONDAS`;
+    }
 
     // combo
     const comboEl = document.getElementById('combo');
