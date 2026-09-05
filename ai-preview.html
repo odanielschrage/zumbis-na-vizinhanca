@@ -12,7 +12,8 @@
   .sub { text-align: center; opacity: .6; font-size: 13px; margin: 0 0 20px; }
   .wrap { max-width: 1240px; margin: 0 auto; }
   canvas { display: block; margin: 0 auto; border-radius: 10px; background: #000; max-width: 100%; }
-  .ctl { text-align: center; margin: 12px 0; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .ctl { text-align: center; margin: 12px 0; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; align-items: center; }
+  .ctl span { opacity: .6; font-size: 12px; }
   button { font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #e8e8f0;
     background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.18); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
   button:hover { background: rgba(255,255,255,.14); }
@@ -28,26 +29,29 @@
 <body>
 <div class="wrap">
   <h1>ARTE GERADA POR IA</h1>
-  <p class="sub">Sprites gerados pelo Gemini com fundo chroma, recortados e compostos aqui na hora. Arma é um asset separado, encaixado na mão.</p>
+  <p class="sub">Sprites gerados pelo Gemini com fundo chroma, recortados e compostos aqui na hora. Arma é um asset separado, encaixado na mão detectada.</p>
   <p id="status">carregando…</p>
 
-  <h2>EM JOGO — escala real, com a iluminação do jogo</h2>
+  <h2>EM JOGO — elenco em escala real, com a iluminação do jogo</h2>
   <div class="ctl">
-    <span style="opacity:.6;font-size:12px;align-self:center">Arma do Rex:</span>
-    <button data-w="0" class="sel">Pistola</button>
-    <button data-w="1">Escopeta</button>
-    <button data-w="2">Lança-chamas</button>
+    <span>Arma do Rex:</span>
+    <button data-w="weapons:0" class="sel">Pistola</button>
+    <button data-w="weapons:1">Escopeta</button>
+    <button data-w="weapons:2">Lança-chamas</button>
+    <button data-w="weapons2:0">Metralhadora</button>
+    <button data-w="weapons2:1">Bazuca</button>
+    <button data-w="weapons2:2">Congelador</button>
     <button id="zoom">🔍 Aproximar 2x</button>
   </div>
-  <canvas id="scene" width="1100" height="560"></canvas>
+  <canvas id="scene" width="1200" height="640"></canvas>
 
   <h2>FICHAS — consistência entre vistas (recorte automático do chroma)</h2>
   <div class="sheets" id="sheets"></div>
 
   <p class="note">
     Consistência garantida por construção: cada personagem nasce numa única imagem com as 3 vistas;
-    zumbi e armas foram gerados com a ficha do Rex como referência de estilo; a arma é um asset único
-    composto sobre qualquer personagem/vista — idêntica em todo lugar.
+    todo o elenco foi gerado com a ficha do Rex (heróis) ou do zumbi (monstros) como referência de estilo;
+    a arma é um asset único composto sobre qualquer personagem/vista — idêntica em todo lugar.
   </p>
 </div>
 
@@ -67,12 +71,9 @@ function chromaKey(img) {
   const d = id.data;
   for (let i = 0; i < d.length; i += 4) {
     const r = d[i], gg = d[i + 1], b = d[i + 2];
-    const dom = gg - Math.max(r, b);          // quanto o verde domina
+    const dom = gg - Math.max(r, b);
     if (dom > 90) { d[i + 3] = 0; continue; }
-    if (dom > 34) {                           // borda: alpha parcial + despill
-      d[i + 3] = Math.round(255 * (1 - (dom - 34) / 56));
-      d[i + 1] = Math.max(r, b);
-    }
+    if (dom > 34) { d[i + 3] = Math.round(255 * (1 - (dom - 34) / 56)); d[i + 1] = Math.max(r, b); }
   }
   g.putImageData(id, 0, 0);
   return c;
@@ -82,19 +83,38 @@ function chromaKey(img) {
 function slice(keyed, expected) {
   const w = keyed.width, h = keyed.height;
   const d = keyed.getContext('2d').getImageData(0, 0, w, h).data;
-  const col = new Uint8Array(w);
-  for (let x = 0; x < w; x++) for (let y = 0; y < h; y++) if (d[(y * w + x) * 4 + 3] > 40) { col[x] = 1; break; }
+  // ocupação por coluna (contagem, não só booleano: serve para achar "vales")
+  const cnt = new Uint16Array(w);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 40) cnt[x]++;
   const runs = [];
   let start = -1, gap = 0;
   for (let x = 0; x <= w; x++) {
-    const on = x < w && col[x];
+    const on = x < w && cnt[x] > 0;
     if (on) { if (start < 0) start = x; gap = 0; }
     else if (start >= 0) { if (++gap > 14) { runs.push([start, x - gap]); start = -1; gap = 0; } }
   }
   if (start >= 0) runs.push([start, w - 1]);
-  // ignora ruído: mantém as N maiores faixas, em ordem de x
   runs.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]));
-  const keep = runs.slice(0, expected).sort((a, b) => a[0] - b[0]);
+  let keep = runs.slice(0, expected).sort((a, b) => a[0] - b[0]);
+
+  // figuras encostando (foice, braços largos) fundem faixas → divide a mais larga
+  // nos vales de ocupação perto das divisões iguais (as fichas são espaçadas uniformemente)
+  if (keep.length < expected && keep.length > 0) {
+    const wide = keep.reduce((a, b) => (b[1] - b[0]) > (a[1] - a[0]) ? b : a);
+    const need = expected - keep.length + 1;
+    const [x0, x1] = wide, span = x1 - x0 + 1, r = Math.round(span * 0.10);
+    const cuts = [];
+    for (let i = 1; i < need; i++) {
+      const target = x0 + Math.round(span * i / need);
+      let best = target, bv = Infinity;
+      for (let x = Math.max(x0, target - r); x <= Math.min(x1, target + r); x++) if (cnt[x] < bv) { bv = cnt[x]; best = x; }
+      cuts.push(best);
+    }
+    const pieces = []; let s = x0;
+    for (const c of cuts) { pieces.push([s, c]); s = c + 1; }
+    pieces.push([s, x1]);
+    keep = keep.filter(k => k !== wide).concat(pieces).sort((a, b) => a[0] - b[0]);
+  }
   return keep.map(([x0, x1]) => {
     let y0 = h, y1 = 0;
     for (let y = 0; y < h; y++) for (let x = x0; x <= x1; x++) if (d[(y * w + x) * 4 + 3] > 40) { if (y < y0) y0 = y; if (y > y1) y1 = y; break; }
@@ -106,7 +126,29 @@ function slice(keyed, expected) {
   });
 }
 
-// desenha um sprite com altura-alvo, pés em footY, com sombra
+// ponto da mão num sprite de perfil em pose de mira: região opaca mais à direita
+const _hand = new WeakMap();
+function handPoint(c) {
+  if (_hand.has(c)) return _hand.get(c);
+  const w = c.width, h = c.height;
+  const d = c.getContext('2d').getImageData(0, 0, w, h).data;
+  let maxX = 0;
+  for (let x = w - 1; x >= 0 && !maxX; x--) for (let y = 0; y < h; y++) if (d[(y * w + x) * 4 + 3] > 60) { maxX = x; break; }
+  let sy = 0, n = 0;
+  for (let x = Math.max(0, maxX - Math.round(w * 0.07)); x <= maxX; x++)
+    for (let y = 0; y < h; y++) if (d[(y * w + x) * 4 + 3] > 60) { sy += y; n++; }
+  const p = { x: maxX - w * 0.02, y: n ? sy / n : h * 0.25 };
+  _hand.set(c, p);
+  return p;
+}
+
+// empunhadura de cada arma (fração da largura/altura) e altura em jogo
+const ANCHORS = {
+  weapons:  [ { ax: 0.24, ay: 0.62, h: 0.12 }, { ax: 0.46, ay: 0.50, h: 0.16 }, { ax: 0.34, ay: 0.46, h: 0.19 } ],
+  weapons2: [ { ax: 0.40, ay: 0.55, h: 0.14 }, { ax: 0.44, ay: 0.50, h: 0.16 }, { ax: 0.28, ay: 0.56, h: 0.15 } ],
+};
+
+// sprite com altura-alvo, pés em footY, com sombra
 function sprite(g, c, x, footY, height, flip) {
   const s = height / c.height, w = c.width * s;
   g.save();
@@ -118,14 +160,31 @@ function sprite(g, c, x, footY, height, flip) {
   if (flip) g.scale(-1, 1);
   g.drawImage(c, -w / 2, -height, w, height);
   g.restore();
-  return { w, s };
+}
+
+// herói de perfil com a arma composta NA MÃO (arma por baixo; as mãos envolvem a empunhadura)
+function heroArmed(g, side, x, footY, height, wpKey, flip) {
+  const s = height / side.height, w = side.width * s;
+  const [sheet, idx] = wpKey.split(':');
+  const wp = A[sheet] && A[sheet][+idx];
+  if (wp) {
+    const hp = handPoint(side), an = ANCHORS[sheet][+idx];
+    const wh = height * an.h, ws = wh / wp.height, ww = wp.width * ws;
+    g.save();
+    g.translate(x, footY);
+    if (flip) g.scale(-1, 1);
+    const hx = -w / 2 + hp.x * s, hy = -height + hp.y * s;
+    g.drawImage(wp, hx - ww * an.ax, hy - wh * an.ay, ww, wh);
+    g.restore();
+  }
+  sprite(g, side, x, footY, height, flip);
 }
 
 // ---------- cena ----------
 const scene = document.getElementById('scene');
 const S = scene.getContext('2d');
-let A = {};                    // assets recortados
-let weapon = 0, zoom = false;
+let A = {};
+let rexWeapon = 'weapons:0', zoom = false;
 
 function drawScene() {
   const W = scene.width, H = scene.height;
@@ -136,55 +195,43 @@ function drawScene() {
   S.scale(z, z);
   const vw = W / z, vh = H / z;
 
-  // chão: textura em ladrilho
   if (A.ground) {
-    const p = S.createPattern(A.ground, 'repeat');
-    S.fillStyle = p;
+    S.fillStyle = S.createPattern(A.ground, 'repeat');
     S.save(); S.scale(0.5, 0.5); S.fillRect(0, 0, vw * 2, vh * 2); S.restore();
   } else { S.fillStyle = '#2a2c30'; S.fillRect(0, 0, vw, vh); }
-  // faixa da rua
   S.strokeStyle = 'rgba(210,190,90,.55)'; S.lineWidth = 5; S.setLineDash([36, 28]);
-  S.beginPath(); S.moveTo(0, vh * 0.62); S.lineTo(vw, vh * 0.62); S.stroke(); S.setLineDash([]);
+  S.beginPath(); S.moveTo(0, vh * 0.6); S.lineTo(vw, vh * 0.6); S.stroke(); S.setLineDash([]);
 
-  const HH = 118, ZH = 112;   // alturas em jogo
-  const cx = vw * 0.5, fy = vh * 0.62;
+  const HH = 118, MH = 112, BH = 175;
+  const cx = vw * 0.5, fy = vh * 0.6;
+  const v = (k, i) => A[k] && A[k][i];
 
-  // zumbis avançando (3 vistas do mesmo zumbi)
-  if (A.zombie) {
-    sprite(S, A.zombie[0], cx - 250, fy - 30, ZH);
-    sprite(S, A.zombie[2], cx - 160, fy + 40, ZH);
-    sprite(S, A.zombie[2], cx + 210, fy + 20, ZH, true);
-    sprite(S, A.zombie[1], cx + 330, fy - 60, ZH);
-  }
+  // monstros ao redor (várias vistas)
+  if (v('zombie', 0))   sprite(S, v('zombie', 0),   cx - 300, fy - 60, MH);
+  if (v('werewolf', 2)) sprite(S, v('werewolf', 2), cx - 180, fy + 40, MH * 1.05);
+  if (v('brute', 0))    sprite(S, v('brute', 0),    cx + 330, fy - 40, MH * 1.35);
+  if (v('alien', 2))    sprite(S, v('alien', 2),    cx + 200, fy + 50, MH, true);
+  if (v('mummy', 1))    sprite(S, v('mummy', 1),    cx - 420, fy + 30, MH);
+  if (v('doll', 0))     sprite(S, v('doll', 0),     cx + 90,  fy - 90, MH * 0.7);
+  if (v('maniac', 2))   sprite(S, v('maniac', 2),   cx - 60,  fy - 120, MH * 1.08);
+  if (v('boss_reaper', 0)) sprite(S, v('boss_reaper', 0), cx + 470, fy + 90, BH);
+  if (v('civilian', 0)) sprite(S, v('civilian', 0), cx - 520, fy + 110, HH * 0.95);
 
-  // herói: vista lateral em pose de mira, com a arma composta na pegada
-  const hero = A.rex_aim || A.rex;
-  if (hero) {
-    const side = hero[2];
-    const r = sprite(S, side, cx, fy, HH);
-    if (A.weapons) {
-      const wp = A.weapons[weapon];
-      // ponto da pegada na vista lateral (fração da largura/altura do sprite)
-      const gripX = cx + r.w * 0.30, gripY = fy - HH * 0.56;
-      const wh = HH * (weapon === 0 ? 0.13 : 0.22);
-      const ws = wh / wp.height, ww = wp.width * ws;
-      S.drawImage(wp, gripX - ww * 0.28, gripY - wh * 0.55, ww, wh);
-    }
-    // vistas frente/costas ao lado, para comparar
-    sprite(S, hero[0], cx - 120, fy + 90, HH);
-    sprite(S, hero[1], cx + 110, fy + 90, HH);
-  }
+  // heróis armados (perfil), cada um com uma arma diferente
+  if (v('rex_aim', 2))   heroArmed(S, v('rex_aim', 2),   cx,       fy,       HH, rexWeapon);
+  if (v('zeca_aim', 2))  heroArmed(S, v('zeca_aim', 2),  cx - 150, fy + 110, HH, 'weapons2:0');
+  if (v('bruna_aim', 2)) heroArmed(S, v('bruna_aim', 2), cx + 120, fy + 120, HH, 'weapons:1', true);
+  if (v('duda_aim', 2))  heroArmed(S, v('duda_aim', 2),  cx + 300, fy + 150, HH, 'weapons2:2');
 
-  // iluminação do jogo: escuridão ambiente com "buraco" de luz no herói
+  // iluminação do jogo
   const dark = document.createElement('canvas'); dark.width = W; dark.height = H;
   const D = dark.getContext('2d');
   D.fillStyle = 'rgba(12,14,30,0.58)'; D.fillRect(0, 0, W, H);
   D.globalCompositeOperation = 'destination-out';
   const hole = (x, y, r, a) => { const gr = D.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); D.fillStyle = gr; D.beginPath(); D.arc(x, y, r, 0, Math.PI * 2); D.fill(); };
-  hole(cx * z, (fy - 50) * z, 300 * z, 0.98); hole(cx * z, (fy - 50) * z, 520 * z, 0.35);
+  hole(cx * z, (fy - 50) * z, 340 * z, 0.98); hole(cx * z, (fy - 50) * z, 620 * z, 0.35);
   S.setTransform(1, 0, 0, 1, 0, 0);
   S.drawImage(dark, 0, 0);
-  // vinheta
   const vg = S.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.7);
   vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.46)');
   S.fillStyle = vg; S.fillRect(0, 0, W, H);
@@ -205,27 +252,34 @@ function showSheet(title, parts, height) {
   document.getElementById('sheets').appendChild(box);
 }
 
+// [asset, título, altura na ficha]
+const SHEETS = [
+  ['rex_aim',   'REX — pose de mira'],   ['zeca_aim', 'ZECA — pose de mira'],
+  ['bruna_aim', 'BRUNA — pose de mira'], ['duda_aim', 'DUDA — pose de mira'],
+  ['zombie', 'ZUMBI (walker)'], ['werewolf', 'LOBISOMEM (runner)'], ['maniac', 'MANÍACO'],
+  ['mummy', 'MÚMIA'], ['doll', 'BONECA'], ['brute', 'BRUTAMONTES'], ['alien', 'ALIEN (cuspidor)'],
+  ['boss_abom', 'CHEFE — ABOMINAÇÃO'], ['boss_necro', 'CHEFE — NECROMANTE'], ['boss_reaper', 'CHEFE — CEIFADOR'],
+  ['civilian', 'VIZINHO (resgate)'],
+  ['weapons',  'ARMAS — pistola · escopeta · lança-chamas', 90],
+  ['weapons2', 'ARMAS — metralhadora · bazuca · congelador', 90],
+  ['rex', 'REX — idle (ficha de referência do estilo)'],
+];
+
 (async () => {
   const st = document.getElementById('status');
-  const want = { rex: 3, rex_aim: 3, zombie: 3, weapons: 3 };
-  for (const name of Object.keys(want)) {
-    try {
-      const img = await loadImg(`assets/ai/${name}.jpg`);
-      A[name] = slice(chromaKey(img), want[name]);
-    } catch (e) { st.textContent += ` (sem ${name})`; }
-  }
+  const missing = [];
+  await Promise.all(SHEETS.map(async ([name]) => {
+    try { A[name] = slice(chromaKey(await loadImg(`assets/ai/${name}.jpg`)), 3); }
+    catch (e) { missing.push(name); }
+  }));
   try { A.ground = await loadImg('assets/ai/ground.jpg'); } catch (e) {}
-  st.textContent = 'assets: ' + Object.keys(A).join(', ');
-
-  if (A.rex) showSheet('REX — frente · costas · perfil', A.rex, 220);
-  if (A.rex_aim) showSheet('REX EM POSE DE MIRA — mãos vazias para receber a arma', A.rex_aim, 220);
-  if (A.zombie) showSheet('ZUMBI — frente · costas · perfil', A.zombie, 220);
-  if (A.weapons) showSheet('ARMAS — pistola · escopeta · lança-chamas (asset único, composto na mão)', A.weapons, 90);
+  st.textContent = `${Object.keys(A).length} assets carregados` + (missing.length ? ` · faltando: ${missing.join(', ')}` : '');
+  for (const [name, title, h] of SHEETS) if (A[name]) showSheet(title + ' — frente · costas · perfil', A[name], h || 200);
   drawScene();
 })();
 
 document.querySelectorAll('button[data-w]').forEach(b => b.onclick = () => {
-  weapon = +b.dataset.w;
+  rexWeapon = b.dataset.w;
   document.querySelectorAll('button[data-w]').forEach(o => o.classList.toggle('sel', o === b));
   drawScene();
 });

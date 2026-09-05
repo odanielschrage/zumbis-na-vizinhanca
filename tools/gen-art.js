@@ -34,7 +34,65 @@ CONSISTENCY: match the art style, rendering technique, lighting direction, camer
 quality and color treatment of the attached reference image EXACTLY, so this asset looks like it
 belongs to the same game as the reference.`;
 
+// ---- montadores de prompt (mesma estrutura → mesma leitura pelo modelo) ----
+const VIEWS = `Show the SAME character three times in a single horizontal row, identical outfit,
+proportions and scale, evenly spaced, each fully visible head to toe with generous margin:
+(1) FRONT view facing the camera, (2) BACK view, (3) RIGHT SIDE profile view.`;
+const AIM = `ACTION POSE in all three: both arms raised forward at chest height, hands close
+together in a two-handed firearm grip, slight forward lean, alert ready stance — but the HANDS ARE
+EMPTY, no weapon or object drawn at all (the weapon is composited later). In the side view the
+arms point to the right.`;
+const SHAMBLE = `Menacing forward-leaning stance in all three, arms reaching loosely forward,
+readable silhouette, not gory. In the side view it faces right.`;
+const heroAim = (desc) => `Character reference sheet of ONE hero: ${desc}. ${VIEWS} ${AIM}`;
+const monster = (desc) => `Character reference sheet of ONE enemy: ${desc}. ${VIEWS} ${SHAMBLE}`;
+
 const JOBS = {
+  // ---- heróis em pose de mira (referência: rex_aim.jpg — carrega estilo E pose) ----
+  zeca_aim: { aspect: '16:9', prompt: heroAim(`Zeca — a lanky teenage boy, light skin, spiky
+bright-blond hair, red-and-blue paper 3D glasses on his face, dark charcoal t-shirt with a small red
+logo, bright blue jeans, red sneakers. Same rendering, camera and scale as the reference hero.`) },
+  bruna_aim: { aspect: '16:9', prompt: heroAim(`Bruna — an athletic teenage girl, brown skin, dark
+brown hair in a high ponytail, backwards baseball cap, purple t-shirt with a small white logo, dark
+gray joggers, white sneakers. Same rendering, camera and scale as the reference hero.`) },
+  duda_aim: { aspect: '16:9', prompt: heroAim(`Duda — a stocky teenage boy, tan skin, short brown
+hair, round nerd glasses, light-blue t-shirt with a small yellow logo, brown cargo pants, dark brown
+boots. Same rendering, camera and scale as the reference hero.`) },
+
+  // ---- monstros (referência: zombie.jpg) ----
+  werewolf: { aspect: '16:9', prompt: monster(`a fast feral werewolf — hunched bipedal wolf-man,
+matted dark-gray fur, torn shorts, long claws, glowing amber eyes, bared fangs`) },
+  maniac:   { aspect: '16:9', prompt: monster(`a hulking masked maniac — big man in a stained
+mechanic jumpsuit, cracked white hockey mask, wielding a rusty cleaver in one hand`) },
+  mummy:    { aspect: '16:9', prompt: monster(`an ancient mummy — tall figure wrapped head to toe in
+frayed dusty bandages, some strips hanging loose, faint green glow in the eye sockets`) },
+  doll:     { aspect: '16:9', prompt: monster(`a creepy possessed porcelain doll the size of a child —
+cracked white face, glass eyes, tattered Victorian dress, stiff jointed limbs, unsettling grin`) },
+  brute:    { aspect: '16:9', prompt: monster(`a massive bloated brute zombie — twice as wide as a
+man, swollen gray-purple flesh, ripped tank top, tiny head sunk into huge shoulders, thick arms`) },
+  alien:    { aspect: '16:9', prompt: monster(`a slender acid-spitting alien — sleek dark-green
+exoskeleton, elongated head, large black almond eyes, dripping acid-green saliva from its jaws`) },
+
+  // ---- chefes (referência: zombie.jpg; maiores e mais detalhados) ----
+  boss_abom:  { aspect: '16:9', prompt: monster(`the ABOMINATION boss — a towering mass of fused
+rotting bodies, several arms, exposed ribs, one huge glowing eye, dripping and grotesque but readable`) },
+  boss_necro: { aspect: '16:9', prompt: monster(`the NECROMANCER boss — a tall skeletal sorcerer in a
+tattered dark-purple hooded robe, glowing green runes, holding a bone staff with a floating skull`) },
+  boss_reaper:{ aspect: '16:9', prompt: monster(`the REAPER boss — a towering grim reaper, black
+hooded cloak floating, skeletal hands, a huge curved scythe, faint blue flame inside the hood`) },
+
+  // ---- civil (vizinho a resgatar; referência: rex.jpg) ----
+  civilian: { aspect: '16:9', prompt: `Character reference sheet of ONE civilian: a frightened
+middle-aged man in a light-blue polo shirt and beige trousers, brown loafers, balding, sweating.
+${VIEWS} PANICKED POSE in all three: both arms raised straight up in the air, mouth open, wide eyes.` },
+
+  // ---- mais armas (referência: weapons.jpg) ----
+  weapons2: { aspect: '16:9', prompt: `Game item sheet: three handheld weapons laid out in ONE
+horizontal row, each fully isolated, same scale, all in strict RIGHT-facing side view (barrel
+pointing right), evenly spaced with margin: (1) a compact submachine gun with a folding stock,
+(2) a shoulder-fired rocket launcher (bazooka) with a rocket loaded, (3) a sci-fi freeze ray gun
+with glowing ice-blue coils and frost on the barrel. Realistic materials, crisp, no hands.` },
+
   // herói de referência: ficha com 3 vistas na MESMA imagem
   rex: {
     aspect: '16:9',
