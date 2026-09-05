@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arte gerada por IA — Zumbis na Vizinhança</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 26px 20px 60px; background: #0b0d13; color: #e8e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+  h1 { font-size: 22px; letter-spacing: 2px; color: #9dff5e; text-align: center; margin: 0 0 6px; }
+  h2 { font-size: 13px; letter-spacing: 2px; color: #5ec8ff; margin: 30px 0 8px; text-align: center; }
+  .sub { text-align: center; opacity: .6; font-size: 13px; margin: 0 0 20px; }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+  canvas { display: block; margin: 0 auto; border-radius: 10px; background: #000; max-width: 100%; }
+  .ctl { text-align: center; margin: 12px 0; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  button { font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #e8e8f0;
+    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.18); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  button:hover { background: rgba(255,255,255,.14); }
+  button.sel { border-color: #9dff5e; color: #9dff5e; background: rgba(157,255,94,.12); }
+  .sheets { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
+  .sheet { background: #12151d; border: 1px solid rgba(255,255,255,.09); border-radius: 12px; padding: 12px; text-align: center; }
+  .sheet h3 { font-size: 12px; letter-spacing: 1.5px; margin: 0 0 8px; opacity: .8; }
+  .sheet canvas { background: #1a1e28; }
+  .note { font-size: 12px; opacity: .55; text-align: center; margin-top: 18px; line-height: 1.7; }
+  #status { text-align: center; opacity: .6; font-size: 12px; min-height: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ARTE GERADA POR IA</h1>
+  <p class="sub">Sprites gerados pelo Gemini com fundo chroma, recortados e compostos aqui na hora. Arma é um asset separado, encaixado na mão.</p>
+  <p id="status">carregando…</p>
+
+  <h2>EM JOGO — escala real, com a iluminação do jogo</h2>
+  <div class="ctl">
+    <span style="opacity:.6;font-size:12px;align-self:center">Arma do Rex:</span>
+    <button data-w="0" class="sel">Pistola</button>
+    <button data-w="1">Escopeta</button>
+    <button data-w="2">Lança-chamas</button>
+    <button id="zoom">🔍 Aproximar 2x</button>
+  </div>
+  <canvas id="scene" width="1100" height="560"></canvas>
+
+  <h2>FICHAS — consistência entre vistas (recorte automático do chroma)</h2>
+  <div class="sheets" id="sheets"></div>
+
+  <p class="note">
+    Consistência garantida por construção: cada personagem nasce numa única imagem com as 3 vistas;
+    zumbi e armas foram gerados com a ficha do Rex como referência de estilo; a arma é um asset único
+    composto sobre qualquer personagem/vista — idêntica em todo lugar.
+  </p>
+</div>
+
+<script>
+// ---------- carregamento + chroma key ----------
+function loadImg(src) {
+  return new Promise((ok, err) => { const i = new Image(); i.onload = () => ok(i); i.onerror = err; i.src = src; });
+}
+
+// remove o verde puro (tolerante a JPEG) e tira a franja verde das bordas
+function chromaKey(img) {
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  const id = g.getImageData(0, 0, c.width, c.height);
+  const d = id.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], gg = d[i + 1], b = d[i + 2];
+    const dom = gg - Math.max(r, b);          // quanto o verde domina
+    if (dom > 90) { d[i + 3] = 0; continue; }
+    if (dom > 34) {                           // borda: alpha parcial + despill
+      d[i + 3] = Math.round(255 * (1 - (dom - 34) / 56));
+      d[i + 1] = Math.max(r, b);
+    }
+  }
+  g.putImageData(id, 0, 0);
+  return c;
+}
+
+// separa as figuras de uma ficha (colunas ocupadas separadas por vão) e recorta cada bbox
+function slice(keyed, expected) {
+  const w = keyed.width, h = keyed.height;
+  const d = keyed.getContext('2d').getImageData(0, 0, w, h).data;
+  const col = new Uint8Array(w);
+  for (let x = 0; x < w; x++) for (let y = 0; y < h; y++) if (d[(y * w + x) * 4 + 3] > 40) { col[x] = 1; break; }
+  const runs = [];
+  let start = -1, gap = 0;
+  for (let x = 0; x <= w; x++) {
+    const on = x < w && col[x];
+    if (on) { if (start < 0) start = x; gap = 0; }
+    else if (start >= 0) { if (++gap > 14) { runs.push([start, x - gap]); start = -1; gap = 0; } }
+  }
+  if (start >= 0) runs.push([start, w - 1]);
+  // ignora ruído: mantém as N maiores faixas, em ordem de x
+  runs.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]));
+  const keep = runs.slice(0, expected).sort((a, b) => a[0] - b[0]);
+  return keep.map(([x0, x1]) => {
+    let y0 = h, y1 = 0;
+    for (let y = 0; y < h; y++) for (let x = x0; x <= x1; x++) if (d[(y * w + x) * 4 + 3] > 40) { if (y < y0) y0 = y; if (y > y1) y1 = y; break; }
+    const pad = 4;
+    const c = document.createElement('canvas');
+    c.width = (x1 - x0 + 1) + pad * 2; c.height = (y1 - y0 + 1) + pad * 2;
+    c.getContext('2d').drawImage(keyed, x0, y0, x1 - x0 + 1, y1 - y0 + 1, pad, pad, x1 - x0 + 1, y1 - y0 + 1);
+    return c;
+  });
+}
+
+// desenha um sprite com altura-alvo, pés em footY, com sombra
+function sprite(g, c, x, footY, height, flip) {
+  const s = height / c.height, w = c.width * s;
+  g.save();
+  g.globalAlpha = 0.45; g.fillStyle = '#000';
+  g.beginPath(); g.ellipse(x, footY + 2, w * 0.42, height * 0.07, 0, 0, Math.PI * 2); g.fill();
+  g.restore();
+  g.save();
+  g.translate(x, footY);
+  if (flip) g.scale(-1, 1);
+  g.drawImage(c, -w / 2, -height, w, height);
+  g.restore();
+  return { w, s };
+}
+
+// ---------- cena ----------
+const scene = document.getElementById('scene');
+const S = scene.getContext('2d');
+let A = {};                    // assets recortados
+let weapon = 0, zoom = false;
+
+function drawScene() {
+  const W = scene.width, H = scene.height;
+  const z = zoom ? 2 : 1;
+  S.save();
+  S.setTransform(1, 0, 0, 1, 0, 0);
+  S.clearRect(0, 0, W, H);
+  S.scale(z, z);
+  const vw = W / z, vh = H / z;
+
+  // chão: textura em ladrilho
+  if (A.ground) {
+    const p = S.createPattern(A.ground, 'repeat');
+    S.fillStyle = p;
+    S.save(); S.scale(0.5, 0.5); S.fillRect(0, 0, vw * 2, vh * 2); S.restore();
+  } else { S.fillStyle = '#2a2c30'; S.fillRect(0, 0, vw, vh); }
+  // faixa da rua
+  S.strokeStyle = 'rgba(210,190,90,.55)'; S.lineWidth = 5; S.setLineDash([36, 28]);
+  S.beginPath(); S.moveTo(0, vh * 0.62); S.lineTo(vw, vh * 0.62); S.stroke(); S.setLineDash([]);
+
+  const HH = 118, ZH = 112;   // alturas em jogo
+  const cx = vw * 0.5, fy = vh * 0.62;
+
+  // zumbis avançando (3 vistas do mesmo zumbi)
+  if (A.zombie) {
+    sprite(S, A.zombie[0], cx - 250, fy - 30, ZH);
+    sprite(S, A.zombie[2], cx - 160, fy + 40, ZH);
+    sprite(S, A.zombie[2], cx + 210, fy + 20, ZH, true);
+    sprite(S, A.zombie[1], cx + 330, fy - 60, ZH);
+  }
+
+  // herói: vista lateral em pose de mira, com a arma composta na pegada
+  const hero = A.rex_aim || A.rex;
+  if (hero) {
+    const side = hero[2];
+    const r = sprite(S, side, cx, fy, HH);
+    if (A.weapons) {
+      const wp = A.weapons[weapon];
+      // ponto da pegada na vista lateral (fração da largura/altura do sprite)
+      const gripX = cx + r.w * 0.30, gripY = fy - HH * 0.56;
+      const wh = HH * (weapon === 0 ? 0.13 : 0.22);
+      const ws = wh / wp.height, ww = wp.width * ws;
+      S.drawImage(wp, gripX - ww * 0.28, gripY - wh * 0.55, ww, wh);
+    }
+    // vistas frente/costas ao lado, para comparar
+    sprite(S, hero[0], cx - 120, fy + 90, HH);
+    sprite(S, hero[1], cx + 110, fy + 90, HH);
+  }
+
+  // iluminação do jogo: escuridão ambiente com "buraco" de luz no herói
+  const dark = document.createElement('canvas'); dark.width = W; dark.height = H;
+  const D = dark.getContext('2d');
+  D.fillStyle = 'rgba(12,14,30,0.58)'; D.fillRect(0, 0, W, H);
+  D.globalCompositeOperation = 'destination-out';
+  const hole = (x, y, r, a) => { const gr = D.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); D.fillStyle = gr; D.beginPath(); D.arc(x, y, r, 0, Math.PI * 2); D.fill(); };
+  hole(cx * z, (fy - 50) * z, 300 * z, 0.98); hole(cx * z, (fy - 50) * z, 520 * z, 0.35);
+  S.setTransform(1, 0, 0, 1, 0, 0);
+  S.drawImage(dark, 0, 0);
+  // vinheta
+  const vg = S.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.7);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.46)');
+  S.fillStyle = vg; S.fillRect(0, 0, W, H);
+  S.restore();
+}
+
+function showSheet(title, parts, height) {
+  const box = document.createElement('div'); box.className = 'sheet';
+  const h3 = document.createElement('h3'); h3.textContent = title; box.appendChild(h3);
+  const c = document.createElement('canvas');
+  const gapPx = 24;
+  const ws = parts.map(p => p.width * (height / p.height));
+  c.width = ws.reduce((a, b) => a + b, 0) + gapPx * (parts.length + 1); c.height = height + 24;
+  const g = c.getContext('2d');
+  let x = gapPx;
+  parts.forEach((p, i) => { g.drawImage(p, x, 12, ws[i], height); x += ws[i] + gapPx; });
+  box.appendChild(c);
+  document.getElementById('sheets').appendChild(box);
+}
+
+(async () => {
+  const st = document.getElementById('status');
+  const want = { rex: 3, rex_aim: 3, zombie: 3, weapons: 3 };
+  for (const name of Object.keys(want)) {
+    try {
+      const img = await loadImg(`assets/ai/${name}.jpg`);
+      A[name] = slice(chromaKey(img), want[name]);
+    } catch (e) { st.textContent += ` (sem ${name})`; }
+  }
+  try { A.ground = await loadImg('assets/ai/ground.jpg'); } catch (e) {}
+  st.textContent = 'assets: ' + Object.keys(A).join(', ');
+
+  if (A.rex) showSheet('REX — frente · costas · perfil', A.rex, 220);
+  if (A.rex_aim) showSheet('REX EM POSE DE MIRA — mãos vazias para receber a arma', A.rex_aim, 220);
+  if (A.zombie) showSheet('ZUMBI — frente · costas · perfil', A.zombie, 220);
+  if (A.weapons) showSheet('ARMAS — pistola · escopeta · lança-chamas (asset único, composto na mão)', A.weapons, 90);
+  drawScene();
+})();
+
+document.querySelectorAll('button[data-w]').forEach(b => b.onclick = () => {
+  weapon = +b.dataset.w;
+  document.querySelectorAll('button[data-w]').forEach(o => o.classList.toggle('sel', o === b));
+  drawScene();
+});
+document.getElementById('zoom').onclick = (e) => { zoom = !zoom; e.target.textContent = zoom ? '↩ Escala real' : '🔍 Aproximar 2x'; drawScene(); };
+</script>
+</body>
+</html>
