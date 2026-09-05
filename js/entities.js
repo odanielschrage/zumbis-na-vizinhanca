@@ -104,7 +104,8 @@ class Player {
       this.weapons.push(w);
       this.weaponIdx = this.weapons.length - 1;
     }
-    this.ammo[w] += Math.round(ammo * this.ammoMult);   // perk 'ammo' rende mais munição
+    const wsLvl = (typeof Game !== 'undefined' && Game.base) ? Game.baseLvl('workshop') : 0;
+    this.ammo[w] += Math.round(ammo * this.ammoMult * (1 + 0.15 * wsLvl));   // perk 'ammo' e oficina rendem mais munição
   }
 
   switchWeapon() {
@@ -880,6 +881,61 @@ class Nest {
 }
 
 // ---------- Bala ----------
+// ---------- Torreta do abrigo: defende o centro do mapa sozinha ----------
+const TURRET_SHOT = { speed: 950, dmg: 15, life: 0.55, type: 'normal' };
+class Turret {
+  constructor(x, y) {
+    this.x = x; this.y = y; this.r = 14;
+    this.dir = -Math.PI / 2;
+    this.cd = rand(0, 0.5);
+    this.range = 300;
+    this.anim = rand(100);
+    this.static = true;      // não é empurrada por zumbis
+    this.isTurret = true;
+  }
+
+  update(dt, zombies) {
+    this.cd -= dt; this.anim += dt;
+    let best = null, bd = this.range;
+    for (const z of zombies) {
+      if (z.isNest || z.frozen > 0) continue;
+      const d = dist(this.x, this.y, z.x, z.y);
+      if (d < bd) { bd = d; best = z; }
+    }
+    if (!best) return;
+    // vira suave para o alvo
+    let da = angTo(this.x, this.y, best.x, best.y) - this.dir;
+    while (da > Math.PI) da -= TAU; while (da < -Math.PI) da += TAU;
+    this.dir += da * Math.min(1, dt * 12);
+    if (this.cd <= 0 && Math.abs(da) < 0.35) {
+      this.cd = 0.55;
+      const mx = this.x + Math.cos(this.dir) * 18, my = this.y + Math.sin(this.dir) * 18;
+      Game.bullets.push(new Bullet(mx, my, this.dir + rand(-0.04, 0.04), TURRET_SHOT, this));
+      Particles.muzzle(mx, my, this.dir);
+      Game.flashes.push({ x: mx, y: my, t: 0.05 });
+    }
+  }
+
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    // sombra + base
+    ctx.fillStyle = 'rgba(0,0,0,.35)';
+    ctx.beginPath(); ctx.ellipse(0, 6, 17, 8, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#2a2e38'; ctx.beginPath(); ctx.arc(0, 0, 14, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#5a6170'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 14, 0, TAU); ctx.stroke();
+    // cano girando
+    ctx.rotate(this.dir);
+    ctx.fillStyle = '#4a515e'; roundRect(ctx, -4, -4, 24, 8, 3); ctx.fill();
+    ctx.fillStyle = '#cfd3d8'; ctx.fillRect(16, -2, 6, 4);
+    ctx.rotate(-this.dir);
+    // luz de status (pisca quando tem alvo perto)
+    ctx.fillStyle = this.cd > 0.45 ? '#ffd75e' : '#7dff9e';
+    ctx.beginPath(); ctx.arc(0, 0, 3.2, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+}
+
 class Bullet {
   constructor(x, y, angle, wdef, owner) {
     this.x = x; this.y = y;

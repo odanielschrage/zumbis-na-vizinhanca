@@ -55,10 +55,11 @@
     <p id="highline" class="hint" style="margin-bottom:14px"></p>
 
     <div class="btns">
-      <button id="btn1p" class="big">▶ &nbsp;1 JOGADOR</button>
-      <button id="btn2p" class="big alt">👥 &nbsp;2 JOGADORES</button>
+      <button id="btn1p" class="big" disabled>▶ &nbsp;1 JOGADOR</button>
+      <button id="btn2p" class="big alt" disabled>👥 &nbsp;2 JOGADORES</button>
       <button id="btnOptions" class="big alt">⚙ &nbsp;OPÇÕES</button>
     </div>
+    <p id="artLoading" class="hint artload">⏳ Carregando arte…</p>
     <div class="controls">
       <div>
         <h3 style="color:#5ec8ff">Jogador 1</h3>
@@ -115,12 +116,19 @@
   </div>
 </div>
 
-<!-- LOJA (entre fases) -->
+<!-- ABRIGO (entre fases): estruturas, moradores e loja -->
 <div id="shop" class="overlay hidden">
-  <div class="panel">
-    <h2 id="shopTitle">LOJA</h2>
-    <p class="tag">Fim da fase! Gaste seu dinheiro antes de seguir (sua pontuação não cai). <span id="shopMoney">💰 0</span></p>
-    <div id="shopItems"></div>
+  <div class="panel wide">
+    <h2 id="shopTitle">ABRIGO</h2>
+    <p class="tag">Fim da fase! Invista no abrigo antes de seguir (sua pontuação não cai). <span id="shopMoney">💰 0</span></p>
+    <div class="tabs">
+      <button class="tab sel" data-tab="tabRooms">🏚 ESTRUTURAS</button>
+      <button class="tab" data-tab="tabPeople">🙋 MORADORES <span id="peopleCount" class="pill"></span></button>
+      <button class="tab" data-tab="shopItems">🛒 LOJA</button>
+    </div>
+    <div id="tabRooms" class="tabpane"></div>
+    <div id="tabPeople" class="tabpane hidden"></div>
+    <div id="shopItems" class="tabpane hidden"></div>
     <div class="btns">
       <button id="shopGo" class="big">▶ PRÓXIMA FASE</button>
     </div>

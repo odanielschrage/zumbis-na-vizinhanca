@@ -63,7 +63,9 @@ node tools/gen-art.js werewolf --ref assets/ai/zombie.jpg
 ```
 
 Passe sempre a ficha de referência (`--ref`) para o novo asset sair no mesmo estilo.
-`ai-preview.html` mostra o elenco em cena, em escala de jogo.
+Depois de gerar, rode `python tools/optimize-art.py` (precisa do Pillow): reduz cada
+ficha à metade e re-encoda com croma 4:4:4 — de ~450KB para ~40KB sem prejudicar o
+recorte. `ai-preview.html` mostra o elenco em cena, em escala de jogo.
 
 ## Personagens (com perks)
 
@@ -178,6 +180,23 @@ assets/ai/        — fichas geradas (frente/costas/perfil por personagem) e arm
 > `cartoon-preview.html`, `art-preview.html` e `ai-preview.html` são laboratórios de arte
 > usados no desenvolvimento (não fazem parte do jogo em si). Guardam o histórico das
 > direções testadas — pixel, vetor, cartoon, realista procedural — até chegar à arte por IA.
+
+## Abrigo (progressão entre fases)
+
+Ao vencer o chefe de cada fase você volta ao **Abrigo**, com três abas:
+
+- **Estruturas** — compradas por nível com o dinheiro da partida e permanentes até o
+  fim dela: *Enfermaria* (cura ao fim de cada onda), *Oficina* (+dano e +munição nos
+  drops), *Gerador* (luz do herói com mais alcance), *Torre de vigia* (marca zumbis fora
+  da tela) e *Torretas* (defesas automáticas no centro do mapa).
+- **Moradores** — cada **vizinho resgatado vira um morador** com uma função (enfermeiro,
+  mecânico, eletricista, vigia ou engenheiro). Cada morador soma **+1 nível** à estrutura
+  correspondente, e você pode trocar a função dele a qualquer momento. Resgatar deixa de
+  ser só pontos e passa a ser progressão.
+- **Loja** — os itens de sempre (kits, munição, armas, vida máxima, velocidade).
+
+O nível efetivo de uma estrutura é *níveis comprados + moradores na função*. Tudo isso
+é progressão **dentro da partida** (recomeça a cada jogo), como as demais compras.
 
 ## Acessibilidade
 

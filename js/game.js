@@ -12,6 +12,24 @@ const DIFFS = {
 // arma → ícone desenhado (cartão do jogador na HUD)
 const WEAP_ICON = { pistol: 'gun', smg: 'gun', shotgun: 'gun', flamethrower: 'fire', rocket: 'rocket', freeze: 'snow' };
 
+// ---------- Abrigo: estruturas (compradas por nível) e funções dos moradores ----------
+// Nível efetivo = níveis comprados + moradores na função. Cada vizinho resgatado vira um
+// morador com uma função, então resgatar deixa de ser só pontos e passa a ser progressão.
+const ROOMS = {
+  infirmary:  { name: 'Enfermaria',     icon: '🏥', role: 'Enfermeiro(a)', cost: [350, 600, 950],
+                fx: l => `Cura <b>${15 * l}</b> de vida a todos ao fim de cada onda` },
+  workshop:   { name: 'Oficina',        icon: '🔧', role: 'Mecânico(a)',   cost: [400, 700, 1100],
+                fx: l => `<b>+${10 * l}%</b> de dano · <b>+${15 * l}%</b> de munição nos drops` },
+  generator:  { name: 'Gerador',        icon: '💡', role: 'Eletricista',   cost: [300, 550, 850],
+                fx: l => `Luz do herói com <b>+${20 * l}%</b> de alcance` },
+  watchtower: { name: 'Torre de vigia', icon: '🔭', role: 'Vigia',         cost: [300, 500],
+                fx: l => l >= 2 ? 'Marca <b>todos</b> os zumbis fora da tela' : 'Marca zumbis <b>próximos</b> fora da tela' },
+  turret:     { name: 'Torretas',       icon: '🗼', role: 'Engenheiro(a)', cost: [500, 800, 1200],
+                fx: l => `<b>${l}</b> torreta${l > 1 ? 's' : ''} automática${l > 1 ? 's' : ''} defendendo o centro do mapa` },
+};
+const SURVIVOR_NAMES = ['Ana', 'Bruno', 'Carla', 'Diego', 'Elisa', 'Fábio', 'Gabi', 'Heitor', 'Iara', 'João',
+  'Karen', 'Léo', 'Marta', 'Nando', 'Olívia', 'Paulo', 'Rita', 'Sérgio', 'Tati', 'Vitor', 'Bia', 'Caio'];
+
 const Game = {
   canvas: null, ctx: null,
   lightCanvas: null, lightCtx: null,
@@ -47,6 +65,8 @@ const Game = {
   objective: null,      // objetivo especial da onda (ninhos/escolta/defesa)
   floaters: [],         // números de dano flutuantes
   corpses: [],          // corpos de zumbis (animação de morte: tombar+achatar+fade)
+  base: null,           // abrigo: estruturas por nível + moradores (vizinhos resgatados)
+  turrets: [],          // torretas do abrigo (estrutura 'Torretas' + engenheiros)
   transT: 0,            // transição de fade ao entrar em nova fase (cobre a troca de cenário)
   transDur: 0.65,
   cbMode: false,        // modo daltônico (cores acessíveis)
@@ -68,9 +88,13 @@ const Game = {
     this.resize();
     Input.init(this.canvas);
 
-    // sprites gerados por IA: carrega em segundo plano; até ficar pronto, os draw()
-    // caem no motor cartoon (AIART.ready === false)
-    AIART.load();
+    // sprites gerados por IA: os botões de iniciar só liberam quando a arte estiver pronta.
+    // load() resolve mesmo se algum asset falhar — aí o jogo segue com o motor cartoon.
+    AIART.load().then(() => {
+      document.getElementById('btn1p').disabled = false;
+      document.getElementById('btn2p').disabled = false;
+      hide('artLoading');
+    });
 
     // aba oculta: suspende o áudio (congela o currentTime, evita rajada de notas
     // ao voltar) e retoma ao refocar. O loop de rAF já pausa sozinho quando oculto.
@@ -89,6 +113,7 @@ const Game = {
     document.getElementById('btn2p').onclick = () => { Sound.init(); Sound.click(); this.openCharSelect(2); };
     document.getElementById('csBack').onclick = () => { Sound.click(); this.toMenu(); };
     document.getElementById('shopGo').onclick = () => { Sound.click(); this.closeShop(); };
+    document.querySelectorAll('#shop .tab').forEach(b => b.onclick = () => { Sound.click(); this.switchTab(b.dataset.tab); });
     document.getElementById('btnResume').onclick = () => { Sound.click(); this.setPaused(false); };
     document.getElementById('btnQuit').onclick = () => { Sound.click(); this.toMenu(); };
     document.getElementById('btnRetry').onclick = () => { Sound.click(); this.openCharSelect(this.numPlayers); };
@@ -276,6 +301,8 @@ const Game = {
     this.neighbors = [];
     this.corpses = [];
     this.transT = 0;
+    this.base = this.newBase();
+    this.turrets = [];
     this.bullets = [];
     this.enemyShots = [];
     this.pickups = [];
@@ -365,13 +392,107 @@ const Game = {
     return items;
   },
 
+  // ---------- abrigo ----------
+  newBase() {
+    return { rooms: Object.fromEntries(Object.keys(ROOMS).map(k => [k, 0])), survivors: [], nameI: 0 };
+  },
+
+  // nível efetivo de uma estrutura: comprado + moradores na função (com teto)
+  baseLvl(k) {
+    if (!this.base) return 0;
+    const staff = this.base.survivors.filter(s => s.role === k).length;
+    return Math.min(ROOMS[k].cost.length + 2, this.base.rooms[k] + staff);
+  },
+
+  // vizinho resgatado vira morador na função com menos gente (desempate aleatório)
+  addSurvivor() {
+    const b = this.base;
+    const name = SURVIVOR_NAMES[b.nameI++ % SURVIVOR_NAMES.length];
+    const count = k => b.survivors.filter(s => s.role === k).length;
+    const keys = Object.keys(ROOMS);
+    const min = Math.min(...keys.map(count));
+    const role = pick(keys.filter(k => count(k) === min));
+    const s = { name, role };
+    b.survivors.push(s);
+    return s;
+  },
+
+  // torretas ao redor do centro do mapa (ponto de chegada de cada fase)
+  placeTurrets() {
+    this.turrets = [];
+    const n = this.baseLvl('turret');
+    const cx = World.W / 2, cy = World.H / 2;
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + i * TAU / n;
+      for (const rad of [150, 200, 110, 260]) {
+        const x = cx + Math.cos(a) * rad, y = cy + Math.sin(a) * rad;
+        if (!World.collides(x, y, 18)) { this.turrets.push(new Turret(x, y)); break; }
+      }
+    }
+  },
+
+  switchTab(id) {
+    document.querySelectorAll('#shop .tab').forEach(b => b.classList.toggle('sel', b.dataset.tab === id));
+    for (const pid of ['tabRooms', 'tabPeople', 'shopItems']) document.getElementById(pid).classList.toggle('hidden', pid !== id);
+  },
+
+  buyRoom(k) {
+    const r = ROOMS[k], bought = this.base.rooms[k];
+    if (bought >= r.cost.length || this.money < r.cost[bought]) { Sound.empty(); return; }
+    this.money -= r.cost[bought];
+    this.base.rooms[k]++;
+    Sound.pickup();
+    this.renderShop();   // saldo
+    this.renderBase();
+  },
+
+  renderBase() {
+    const b = this.base;
+    // estruturas
+    const rooms = document.getElementById('tabRooms');
+    rooms.innerHTML = '<div class="rooms">' + Object.entries(ROOMS).map(([k, r]) => {
+      const bought = b.rooms[k], staff = b.survivors.filter(s => s.role === k).length, lvl = this.baseLvl(k);
+      const max = bought >= r.cost.length, cost = max ? 0 : r.cost[bought];
+      const pips = r.cost.map((_, i) => `<span class="pip${i < bought ? ' on' : ''}"></span>`).join('')
+        + Array.from({ length: staff }, () => '<span class="pip staff"></span>').join('');
+      const fx = lvl ? r.fx(lvl) : `<i style="opacity:.7">Nível 1: ${r.fx(1)}</i>`;
+      const who = staff ? ` · ${staff} ${staff > 1 ? 'moradores' : 'morador'}` : '';
+      return `<div class="room"><h4>${r.icon} ${r.name}</h4>` +
+        `<div class="lvl">Nível <b>${lvl}</b>${who}</div><div class="pips">${pips}</div><div class="fx">${fx}</div>` +
+        `<button data-room="${k}"${max ? ' class="max" disabled' : (this.money < cost ? ' disabled' : '')}>` +
+        `${max ? 'NÍVEL MÁXIMO' : `MELHORAR · 💰 ${cost}`}</button></div>`;
+    }).join('') + '</div>';
+    rooms.querySelectorAll('button[data-room]').forEach(el => el.onclick = () => this.buyRoom(el.dataset.room));
+
+    // moradores
+    const people = document.getElementById('tabPeople');
+    const sv = b.survivors;
+    document.getElementById('peopleCount').textContent = sv.length || '';
+    if (!sv.length) {
+      people.innerHTML = '<div class="people"><div class="empty">Ninguém no abrigo ainda.<br>' +
+        'Resgate vizinhos durante as ondas: cada um vira um morador com uma função,<br>' +
+        'e cada morador soma <b>+1 nível</b> à estrutura correspondente.</div></div>';
+    } else {
+      people.innerHTML = '<div class="people">' + sv.map((s, i) => {
+        const r = ROOMS[s.role];
+        const opts = Object.entries(ROOMS).map(([k, o]) => `<option value="${k}"${k === s.role ? ' selected' : ''}>${o.icon} ${o.role}</option>`).join('');
+        return `<div class="person"><div><div class="pname">🙋 ${s.name}</div>` +
+          `<div class="pdesc">${r.role} · ${r.icon} ${r.name} +1 nível</div></div>` +
+          `<select data-i="${i}" title="Mudar função">${opts}</select></div>`;
+      }).join('') + '</div>';
+      people.querySelectorAll('select').forEach(sel => sel.onchange = () => { sv[+sel.dataset.i].role = sel.value; Sound.click(); this.renderBase(); });
+    }
+  },
+
   openShop() {
     this.state = 'shop';
     Music.setMode('menu');
     Sound.vault();
     this.shopItems = this.shopCatalog();
-    document.getElementById('shopTitle').textContent = `FASE ${this.fase} VENCIDA! · LOJA`;
+    document.getElementById('shopTitle').textContent = `ABRIGO · FASE ${this.fase} VENCIDA`;
     this.renderShop();
+    this.renderBase();
+    this.switchTab('tabRooms');
     show('shop');
   },
 
@@ -395,7 +516,7 @@ const Game = {
     it.buy();
     Sound.pickup();
     el.classList.add('flash');
-    setTimeout(() => this.renderShop(), 120);   // atualiza preços/saldo
+    setTimeout(() => { this.renderShop(); this.renderBase(); }, 120);   // atualiza preços/saldo
   },
 
   closeShop() {
@@ -426,6 +547,7 @@ const Game = {
       (this.bossesKilled ? `👹 Chefes derrotados: <b>${this.bossesKilled}</b><br>` : '') +
       `🙋 Vizinhos resgatados: <b>${rescued}</b>` +
       (this.neighborsLost ? ` <span style="opacity:.6">(${this.neighborsLost} perdidos)</span>` : '') +
+      (this.base && this.base.survivors.length ? `<br>🏚 Moradores no abrigo: <b>${this.base.survivors.length}</b>` : '') +
       `<br>⭐ Pontuação: <b>${this.score}</b>` +
       (!isRecord && prev ? `<br><span style="opacity:.6;font-size:13px">🏆 Recorde: ${prev.score}</span>` : '');
     document.getElementById('bossbar').classList.add('hidden');
@@ -463,6 +585,7 @@ const Game = {
         World.resolve(p);
       });
     }
+    this.placeTurrets();   // torretas do abrigo (níveis comprados + engenheiros)
     if (faseStart) {
       this.transT = this.transDur;   // entrada com fade (revela o novo cenário)
       this.banner(`FASE ${this.fase}`, THEMES[this.mapKey].name.toUpperCase(), 2.6, 'gold');
@@ -847,6 +970,11 @@ const Game = {
       const bonus = Math.round((250 + this.wave * 100) * this.diffDef.scoreMult);
       this.addScore(bonus);
       Sound.rescue();
+      // enfermaria do abrigo cura ao fim de cada onda
+      const heal = 15 * this.baseLvl('infirmary');
+      if (heal) for (const p of alive) {
+        if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + heal); this.spawnFloater(p.x, p.y - 30, '+' + heal, '#7dff9e'); Particles.sparkle(p.x, p.y, '#7dff9e'); }
+      }
       // vizinhos não resgatados fogem em segurança (metade dos pontos)
       for (const n of this.neighbors) {
         if (n.alive && !n.vip) { this.addScore(100); }
@@ -866,6 +994,7 @@ const Game = {
 
     // jogadores
     for (const p of this.players) this.updatePlayer(p, dt);
+    for (const t of this.turrets) t.update(dt, this.zombies);
 
     // revive de parceiro caído por proximidade (co-op)
     if (this.numPlayers === 2) {
@@ -978,7 +1107,8 @@ const Game = {
           p.hp = Math.min(p.maxHp, p.hp + 10);
           Particles.sparkle(n.x, n.y, '#ffe066');
           Sound.rescue();
-          this.banner('VIZINHO RESGATADO!', '+500 pontos', 1.4);
+          const sv = this.addSurvivor();   // vira morador do abrigo
+          this.banner('VIZINHO RESGATADO!', `+500 · ${sv.name} virou ${ROOMS[sv.role].role.toLowerCase()} do abrigo`, 2, 'gold');
           break;
         }
       }
@@ -1122,7 +1252,7 @@ const Game = {
     for (let i = 0; i < w.pellets; i++) {
       const a = p.dir + rand(-w.spread, w.spread);
       const b = new Bullet(mx, my, a, w, p);
-      b.dmg *= p.dmgMult;   // power-up de dano dobrado
+      b.dmg *= p.dmgMult * (1 + 0.10 * this.baseLvl('workshop'));   // power-up de dano dobrado + oficina
       if (p.critChance > 0 && Math.random() < p.critChance) { b.dmg *= 2; b.crit = true; }
       this.bullets.push(b);
     }
@@ -1139,7 +1269,7 @@ const Game = {
   fireFlame(p, dt) {
     if (p.ammo.flamethrower <= 0) { p.weaponIdx = 0; Sound.empty(); return; }
     p.ammo.flamethrower = Math.max(0, p.ammo.flamethrower - dt * 22);   // ~fôlego
-    const dmg = 46 * dt * p.dmgMult;   // dano contínuo por segundo
+    const dmg = 46 * dt * p.dmgMult * (1 + 0.10 * this.baseLvl('workshop'));   // dano contínuo por segundo (+ oficina)
     const range = 130, cone = 0.44;
     const dx = Math.cos(p.dir), dy = Math.sin(p.dir);
     // partículas de fogo
@@ -1360,9 +1490,12 @@ const Game = {
     const playing = this.state === 'playing';
     shopEl.classList.toggle('hidden', !playing);
     if (playing) {
-      const left = (5 - this.wave % 5) % 5;   // ondas até o chefe
+      // onda em curso, ou a próxima quando estamos no intervalo (cobre a onda 0 e o
+      // intervalo antes do chefe, que antes mostravam "em 0 ondas")
+      const w = this.wave + (this.intermissionT > 0 ? 1 : 0);
+      const left = (5 - w % 5) % 5;   // 0 = onda do chefe
       shopEl.querySelector('.hval').textContent =
-        this.isBossWave ? 'LOJA ABRE AO VENCER O CHEFE'
+        left === 0 ? 'LOJA ABRE AO VENCER O CHEFE'
         : left === 1 ? 'LOJA APÓS O CHEFE — PRÓXIMA ONDA'
         : `LOJA APÓS O CHEFE — EM ${left} ONDAS`;
     }
@@ -1493,6 +1626,7 @@ const Game = {
     for (const c of this.corpses) if (inView(c.x, c.y)) drawList.push({ y: c.y + c.r - 6, draw: g => this.drawCorpse(g, c) });
     for (const o of World.rects) if (rectView(o)) drawList.push({ y: o.y + o.h, draw: c => World.drawRect(c, o) });
     for (const l of World.lamps) if (inView(l.x, l.y, 60)) drawList.push({ y: l.y, draw: c => World.drawLampPost(c, l) });
+    for (const t of this.turrets) if (inView(t.x, t.y)) drawList.push({ y: t.y + t.r, draw: c => t.draw(c) });
     for (const z of this.zombies) if (inView(z.x, z.y)) drawList.push({ y: z.y + z.r, draw: c => z.draw(c) });
     for (const n of this.neighbors) if (inView(n.x, n.y)) drawList.push({ y: n.y + n.r, draw: c => n.draw(c, this.time) });
     for (const p of this.players) drawList.push({ y: p.y + p.r, draw: c => p.draw(c, this.time) });
@@ -1630,7 +1764,8 @@ const Game = {
       g.fill();
     };
 
-    for (const p of this.players) if (p.alive) { hole(p.x, p.y, 380, 0.98); hole(p.x, p.y, 620, 0.35); }
+    const lf = 1 + 0.20 * this.baseLvl('generator');   // gerador do abrigo amplia a luz
+    for (const p of this.players) if (p.alive) { hole(p.x, p.y, 380 * lf, 0.98); hole(p.x, p.y, 620 * lf, 0.35); }
     for (const l of World.lamps) hole(l.x, l.y - 40, 250, 0.85);
     for (const n of this.neighbors) hole(n.x, n.y, 90, 0.5);
     for (const f of this.flashes) hole(f.x, f.y, 190, 0.9);
@@ -1711,6 +1846,16 @@ const Game = {
       ctx.restore();
     };
     for (const n of this.neighbors) arrow(n, 'rgba(255,224,102,.9)', 'rgba(255,224,102,.8)', n.vip ? 'star' : 'person', n.vip ? '#ffd75e' : '#ffe066');
+    // torre de vigia: zumbis fora da tela (nível 1 = próximos; nível 2 = todos)
+    const watch = this.baseLvl('watchtower');
+    if (watch > 0) {
+      const alive = this.players.filter(p => p.alive);
+      for (const z of this.zombies) {
+        if (z.isNest) continue;
+        if (watch < 2 && !alive.some(p => dist(p.x, p.y, z.x, z.y) < 900)) continue;
+        arrow(z, 'rgba(255,110,110,.85)', 'rgba(255,60,60,.7)', 'skull', '#ffb3b3');
+      }
+    }
     for (const pk of this.pickups) {
       if (pk.kind === 'loot') arrow(pk, 'rgba(255,210,74,.9)', 'rgba(255,190,40,.8)', 'chest');
       else if (pk.kind === 'key') arrow(pk, 'rgba(255,224,102,.95)', 'rgba(255,210,74,.9)', 'key');
