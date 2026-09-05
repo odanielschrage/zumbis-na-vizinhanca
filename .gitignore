@@ -24,5 +24,6 @@ Desktop.ini
 # logs e temporários
 *.log
 npm-debug.log*
-.env
-.env.local
+
+# variáveis de ambiente e credenciais locais (inclui o token OIDC da Vercel)
+.env*

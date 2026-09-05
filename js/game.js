@@ -153,8 +153,11 @@ const Game = {
   },
 
   resize() {
-    this.W = this.canvas.width = this.lightCanvas.width = window.innerWidth;
-    this.H = this.canvas.height = this.lightCanvas.height = window.innerHeight;
+    // nunca deixa 0 (um canvas 0x0 faz drawImage lançar InvalidStateError)
+    const w = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+    const h = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+    this.W = this.canvas.width = this.lightCanvas.width = w;
+    this.H = this.canvas.height = this.lightCanvas.height = h;
   },
 
   // ---------- seleção de personagem ----------
@@ -755,6 +758,11 @@ const Game = {
   frame(now) {
     const dt = Math.min(0.033, (now - this.last) / 1000 || 0.016);
     this.last = now;
+
+    // auto-corrige o canvas se ele saiu de sincronia com a janela (ex.: página
+    // carregada antes do layout, quando innerWidth ainda era 0, sem evento resize)
+    const ww = window.innerWidth, wh = window.innerHeight;
+    if (ww > 0 && wh > 0 && (this.W !== ww || this.H !== wh)) this.resize();
 
     if (this.state === 'playing' && !this.paused) {
       this.time += dt;
