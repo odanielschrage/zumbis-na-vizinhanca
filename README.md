@@ -48,7 +48,11 @@ e entre personagens é garantida por construção:
 - a **arma é um asset isolado**, composto no ponto da mão em tempo de execução —
   idêntica em qualquer personagem e vista, e continua dinâmica no sprite;
 - o fundo verde puro é removido no carregamento (chroma key), e as fichas são
-  fatiadas automaticamente.
+  fatiadas automaticamente;
+- a **caminhada** usa ciclos de 4 quadros por vista (`<ficha>_walk_<vista>.jpg`), também
+  gerados numa única imagem por ciclo. Os quadros escalam pelo mesmo fator e ancoram nos
+  pés e no centro das pernas, então o corpo não treme entre quadros. Quem não tem ciclo
+  (o Ceifador, que flutua) anima por deslocamento.
 
 Enquanto os assets carregam, o jogo desenha com o motor **cartoon 2D** de
 `js/cartoon.js`, que também fornece o buffer de espelhamento/flash usado pelos dois.
@@ -60,6 +64,7 @@ Enquanto os assets carregam, o jogo desenha com o motor **cartoon 2D** de
 node tools/gen-art.js                      # lista os jobs
 node tools/gen-art.js rex_aim --ref assets/ai/rex.jpg
 node tools/gen-art.js werewolf --ref assets/ai/zombie.jpg
+node tools/gen-art.js walk werewolf side --ref assets/ai/werewolf.jpg   # ciclo de caminhada
 ```
 
 Passe sempre a ficha de referência (`--ref`) para o novo asset sair no mesmo estilo.

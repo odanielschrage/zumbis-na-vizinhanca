@@ -140,8 +140,39 @@ dry leaves, night-time, muted and desaturated.`,
   },
 };
 
+// ---- ciclo de caminhada: 4 quadros numa única imagem (consistência por construção) ----
+// Uso: node tools/gen-art.js walk <ficha> <side|down|up> --ref assets/ai/<ficha>.jpg
+// Heróis (ficha *_aim) mantêm o tronco em pose de mira; monstros mantêm o arrasto.
+const WALK_VIEW = {
+  side: 'RIGHT SIDE profile view, walking to the RIGHT',
+  down: 'FRONT view, walking toward the camera',
+  up:   'BACK view, walking away from the camera',
+};
+function walkJob(sheet, view) {
+  const hero = /_aim$/.test(sheet);
+  const upper = hero
+    ? 'Keep the upper body in the ACTION POSE of the reference in every frame: both arms raised forward at chest height, hands together in a two-handed firearm grip, HANDS EMPTY (no weapon drawn).'
+    : 'Keep the menacing forward-leaning posture of the reference in every frame, arms reaching loosely forward.';
+  return {
+    aspect: '16:9',
+    prompt: `Walk cycle sheet of the SAME character as the reference image, identical outfit, colors and
+proportions. FOUR frames of one walking cycle in a single horizontal row, evenly spaced, same scale,
+all feet on the same ground baseline, each figure fully visible with margin. ${WALK_VIEW[view]}.
+Frames, in order: (1) CONTACT — leading foot forward with heel down, trailing foot back;
+(2) DOWN — weight settling on the leading leg, trailing foot lifting off; (3) PASSING — legs crossing
+under the body, body at its highest; (4) HIGH POINT — trailing leg now swinging forward, about to land.
+Clear, readable leg positions that differ between frames. ALL FOUR figures must share the SAME viewpoint described above — this is an animation strip, NOT a turnaround (no front/back/side variation). ${upper}`,
+  };
+}
+
 async function generate(name, opts) {
-  const job = JOBS[name];
+  let job = JOBS[name];
+  if (name === 'walk') {                        // job dinâmico: walk <ficha> <vista>
+    const [sheet, view] = opts.extra;
+    if (!sheet || !WALK_VIEW[view]) { console.error('uso: walk <ficha> <side|down|up> --ref <ficha.jpg>'); process.exit(1); }
+    job = walkJob(sheet, view);
+    name = `${sheet}_walk_${view}`;
+  }
   if (!job) { console.error('job desconhecido:', name, '— disponíveis:', Object.keys(JOBS).join(', ')); process.exit(1); }
   const model = opts.model || 'gemini-3-pro-image';
 
@@ -186,7 +217,8 @@ async function generate(name, opts) {
 
 // ---- CLI ----
 const args = process.argv.slice(2);
-const name = args.find(a => !a.startsWith('--'));
+const positional = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--')));
+const name = positional[0];
 const opt = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : null; };
-if (!name) { console.log('jobs:', Object.keys(JOBS).join(', ')); process.exit(0); }
-generate(name, { ref: opt('--ref'), model: opt('--model') }).catch(e => { console.error(e); process.exit(9); });
+if (!name) { console.log('jobs:', Object.keys(JOBS).join(', '), '| walk <ficha> <side|down|up>'); process.exit(0); }
+generate(name, { ref: opt('--ref'), model: opt('--model'), extra: positional.slice(1) }).catch(e => { console.error(e); process.exit(9); });

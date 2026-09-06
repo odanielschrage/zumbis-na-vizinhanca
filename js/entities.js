@@ -792,10 +792,13 @@ class Neighbor {
   }
 
   draw(ctx, time) {
+    // vira conforme a direção da fuga (frente/costas/perfil); parado, fica na pose de pânico
+    const nmv = Math.hypot(this.vx, this.vy) > 8;
+    const nf = nmv ? CARTOON.facing(Math.atan2(this.vy, this.vx)) : { view: 'down', flip: false };
     CARTOON.blit(ctx, (g, gx, gy) => {
-      if (!(AIART.ready && AIART.monster(g, 'civilian', gx, gy, 'down', this.anim, AIART.CH)))
+      if (!(AIART.ready && AIART.monster(g, 'civilian', gx, gy, nf.view, this.anim, AIART.CH, nmv)))
         CARTOON.civilian(g, gx, gy, 1, this.anim, this.shirt);
-    }, this.x, this.y + 12, { scale: 0.42 });
+    }, this.x, this.y + 12, { scale: 0.42, flip: nf.flip });
     // balão de socorro (VIP da escolta usa estrela)
     const by = this.y - 32 + Math.sin(time * 5) * 3;
     ctx.fillStyle = 'rgba(10,12,20,.7)';

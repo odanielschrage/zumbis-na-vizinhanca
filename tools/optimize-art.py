@@ -21,8 +21,12 @@ for f in sorted(os.listdir(SRC)):
     im = Image.open(p).convert('RGB')
     w, h = im.size
     tw = GROUND_W if f == 'ground.jpg' else TARGET_W
-    if w > tw:
-        im = im.resize((tw, round(h * tw / w)), Image.LANCZOS)
+    if w <= tw:
+        # já otimizado: não re-salva (re-encodar JPEG sobre JPEG degrada a cada passada)
+        print(f'{f:24s} ok ({w}x{h}, {before // 1024}KB)')
+        total_before += before; total_after += before
+        continue
+    im = im.resize((tw, round(h * tw / w)), Image.LANCZOS)
     im.save(p, 'JPEG', quality=Q, optimize=True, subsampling=0, progressive=True)
     after = os.path.getsize(p)
     total_before += before; total_after += after
